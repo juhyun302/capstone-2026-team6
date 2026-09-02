@@ -8,7 +8,6 @@
 - [팀원](#팀원)
 - [프로젝트 개요](#프로젝트-개요)
 - [기술 스택](#기술-스택)
-- [협업 규칙](#협업-규칙)
 
 ## 팀 소개
 
@@ -40,66 +39,3 @@
 ## 기술 스택
 
 > 주제 확정 후 작성 예정
-
-## 협업 규칙
-
-### 브랜치 전략
-
-`main` 브랜치는 보호되어 있어 **직접 push할 수 없습니다.** 모든 작업은 별도
-브랜치에서 진행한 뒤 Pull Request로 병합합니다.
-
-| 브랜치 | 용도 | 예시 |
-| :--- | :--- | :--- |
-| `main` | 병합된 안정 버전 | - |
-| `feat/*` | 기능 개발 | `feat/login-api` |
-| `fix/*` | 버그 수정 | `fix/token-expire` |
-| `docs/*` | 문서 작업 | `docs/add-readme` |
-| `refactor/*` | 리팩터링 | `refactor/user-service` |
-| `agent/*` | AI 에이전트 작업 | `agent/generate-tests` |
-
-### 작업 흐름
-
-```bash
-git switch main
-git pull origin main
-git switch -c feat/기능명
-# 작업 후
-git add .
-git commit -m "feat: 기능 설명"
-git push -u origin feat/기능명
-```
-
-이후 GitHub에서 Pull Request를 생성하고, **팀원 1명 이상의 승인**을 받은 뒤
-merge합니다. merge가 끝난 작업 브랜치는 삭제합니다.
-
-### 커밋 메시지 컨벤션
-
-`<type>: <제목>` 형식으로 작성합니다. 제목은 한글로 간결하게 씁니다.
-
-| type | 의미 |
-| :--- | :--- |
-| `feat` | 새로운 기능 추가 |
-| `fix` | 버그 수정 |
-| `docs` | 문서 수정 |
-| `style` | 코드 포맷팅 (동작 변경 없음) |
-| `refactor` | 리팩터링 |
-| `test` | 테스트 코드 추가 및 수정 |
-| `chore` | 빌드, 설정 등 기타 변경 |
-
-예시: `feat: 사용자 로그인 API 구현`
-
-### Pull Request 규칙
-
-- 제목은 커밋 컨벤션과 동일한 형식으로 작성합니다.
-- 본문에 **무엇을, 왜** 변경했는지 적습니다.
-- 관련 이슈가 있으면 `Closes #이슈번호`로 연결합니다.
-- 리뷰어를 최소 1명 지정하고, 승인 후 merge합니다.
-
-### 문서 관리
-
-회의록, 기획서, 발표 자료 등 산출물은 `docs/` 디렉터리에 누적합니다.
-
-| 경로 | 용도 |
-| :--- | :--- |
-| `docs/meetings/` | 회의록 |
-| `docs/reports/` | 주차별 보고서 및 제출 산출물 |
