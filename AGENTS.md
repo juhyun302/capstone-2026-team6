@@ -16,13 +16,13 @@ Aleph는 업로드한 수학 원문항과 해설에서 핵심 풀이 요소 두 
 - Condition: `content`, `role`, `boundary_rule`, `applicability_rule`, `curriculum_aligned`
 - SolutionIdea: `concept`, `key_elements`(핵심 풀이 요소 목록, 2개), `mechanism`(두 요소의 연결), `transferable`(원문·후보 풀이를 비교할 때만 판단)
 - DifficultyProfile: `target_level`(목표 난도), `student_verified`(실제 학생 풀이로 검증했는지)
-- ReviewResult: `validity_issue`, `curriculum_issue`, `verdict`(`USE`/`REVISE`/`HOLD`), `reason`, `reviewer_type`(`SELF`/`PEER`/`AI` — 검토 주체의 종류이며 1·2차 검수 단계와 별개)
+- ReviewResult: `validity_issue`, `curriculum_issue`, `verdict`(`USE`/`REVISE`/`HOLD`/`REJECT`), `reason`, `reviewer_type`(`SELF`/`PEER`/`AI` — 검토 주체의 종류이며 1·2차 검수 단계와 별개), `approval_status`(`PROVISIONAL`/`APPROVED` — AI가 낸 결과는 항상 `PROVISIONAL`)
 
 ## 3. 절대 규칙
 
 아래 규칙은 `docs/SPEC.md`의 AC와 대응한다.
 
-1. 원문 해설에서 서로 다른 핵심 풀이 요소 두 개와 연결 메커니즘을 확인하지 못하면 문항 오류로 처리하고 후보를 만들지 않는다. 읽을 수 없는 이미지나 충돌하는 입력의 수식을 추측하지 않는다. (↔ AC1, AC2, AC8)
+1. 원문 해설에서 서로 다른 핵심 풀이 요소 두 개와 연결 메커니즘을 확인하지 못하면 문항 오류로 처리하고 후보를 만들지 않는다. 읽을 수 없는 이미지나 충돌하는 입력의 수식을 추측하지 않는다. (↔ AC1, AC2, AC8, AC9)
 2. 제시한 후보에는 원본문항과의 연결, 두 요소의 메커니즘을 어떻게 응용했는지의 검토 근거를 드러낸다. 원문의 수치·기호만 바꾼 후보를 `USE`로 표시하지 않는다. (↔ AC3)
 3. 알려진 수학적 결함이나 교육과정 이탈이 있는 후보를 `USE`로 표시하지 않는다. 검증하지 않은 후보를 검증 완료로 표현하지 않는다. (↔ AC4, AC5)
 4. 실제 학생 풀이 자료 없이 정답률을 실측값으로 쓰거나 `DifficultyProfile.student_verified=true`로 표시하지 않는다. (↔ AC6)

@@ -1,5 +1,6 @@
 # 수학 연계문항 제작·검토 미니 온톨로지 (강의 2 산출물)
-# evidence는 docs/research/interviews.md의 로그 번호를 가리킨다.
+# evidence는 docs/research/interviews.md의 로그 번호(관찰 기록은 '관찰 N')를 가리킨다. 항목마다 그 명사·행동이 실제로 나오는 로그만 적는다.
+# design_rule은 로그가 아니라 제품 설계 결정에서 나온 규칙임을 표시한다.
 # Question의 SOURCE와 CANDIDATE는 서로 다른 클래스가 아니라 question_role 값이다.
 
 version: 1
@@ -15,7 +16,7 @@ classes:
       - creates: Question
         evidence: [로그 2, 로그 3, 로그 4, 로그 5, 로그 6, 로그 7, 로그 8, 로그 9, 로그 10]
       - reviews: Question
-        evidence: [로그 1, 로그 2, 로그 3, 로그 4, 로그 5, 로그 6, 로그 7, 로그 8, 로그 9, 로그 10]
+        evidence: [로그 2, 로그 3, 로그 4, 로그 6, 로그 7, 로그 8, 로그 10]
 
   GenerationRequest:
     description: 원문항과 목표 난도·사용 목적을 묶은 문항 제작 조건
@@ -35,7 +36,7 @@ classes:
 
   Question:
     description: 원문항 또는 이를 바탕으로 만든 후보 문항
-    evidence: [로그 1, 로그 2, 로그 3, 로그 4, 로그 5, 로그 6, 로그 7, 로그 8, 로그 9, 로그 10]
+    evidence: [로그 1, 로그 3, 로그 5, 로그 7, 로그 8, 로그 9, 로그 10]
     attributes:
       question_role: {type: enum, values: [SOURCE, CANDIDATE], evidence: [로그 3, 로그 5, 로그 8, 로그 9]}
       statement: {type: string, note: 원문 또는 후보의 문항 본문과 수식의 읽을 수 있는 표현, evidence: [로그 3, 로그 5, 로그 8, 로그 9, 로그 10]}
@@ -47,11 +48,11 @@ classes:
       - contains: Condition
         evidence: [로그 2, 로그 3, 로그 4, 로그 5, 로그 6, 로그 7, 로그 8, 로그 9, 로그 10]
       - uses: SolutionIdea
-        evidence: [로그 1, 로그 2, 로그 3, 로그 4, 로그 5, 로그 6, 로그 7, 로그 8, 로그 9, 로그 10]
+        evidence: [로그 3, 로그 5, 로그 8, 로그 9]
       - has: DifficultyProfile
         evidence: [로그 1, 로그 2, 로그 3, 로그 5, 로그 8, 로그 9]
       - receives: ReviewResult
-        evidence: [로그 1, 로그 2, 로그 3, 로그 4, 로그 5, 로그 6, 로그 7, 로그 8, 로그 9, 로그 10]
+        evidence: [로그 2, 로그 3, 로그 4, 로그 5, 로그 8, 관찰 1]
 
   Condition:
     description: 답과 풀이 경로에 영향을 주는 문항의 조건
@@ -68,12 +69,12 @@ classes:
 
   SolutionIdea:
     description: 원문 해설에서 확인한 두 핵심 풀이 요소와 두 요소가 함께 작동하는 메커니즘
-    evidence: [로그 1, 로그 2, 로그 3, 로그 4, 로그 5, 로그 6, 로그 7, 로그 8, 로그 9, 로그 10]
+    evidence: [로그 3, 로그 5, 로그 8, 로그 9]
     attributes:
       concept: {type: string, nullable: true, examples: [도함수, 적분, 수열, 합성함수, 그래프 교점], evidence: [로그 3, 로그 4, 로그 5, 로그 6, 로그 7, 로그 8, 로그 9, 로그 10]}
-      key_elements: {type: list, item_type: string, min_items: 2, max_items: 2, nullable: true, note: 해설에서 근거를 찾을 수 있는 서로 구별되는 핵심 풀이 요소. 정확히 두 개라는 개수는 제품 설계 규칙, evidence: [로그 3, 로그 5, 로그 8, 로그 9]}
+      key_elements: {type: list, item_type: string, min_items: 2, max_items: 2, nullable: true, note: 해설에서 근거를 찾을 수 있는 서로 구별되는 핵심 풀이 요소, design_rule: 정확히 두 개라는 개수는 제품 설계 결정이며 로그 근거가 아니다, evidence: [로그 3, 로그 5, 로그 8, 로그 9]}
       mechanism: {type: string, nullable: true, note: 두 핵심 요소가 풀이에서 어떻게 연결되어 결론에 이르는지, evidence: [로그 3, 로그 5, 로그 8, 로그 9]}
-      transferable: {type: boolean, note: 후보가 두 요소의 메커니즘을 의미 있게 응용했는지, evidence: [로그 3, 로그 5, 로그 8, 로그 9]}
+      transferable: {type: boolean, note: 후보가 두 요소의 메커니즘을 의미 있게 응용했는지, design_rule: 원문·후보를 비교하는 판정 기준은 제품 설계 결정이다, evidence: [로그 3, 로그 5, 로그 8, 로그 9]}
     relations:
       - extracted_from: Question
         evidence: [로그 3, 로그 5, 로그 8, 로그 9]
@@ -89,16 +90,17 @@ classes:
 
   ReviewResult:
     description: 후보 문항을 풀고 검토한 뒤 남긴 오류와 처리 판단
-    evidence: [로그 1, 로그 2, 로그 3, 로그 4, 로그 5, 로그 6, 로그 7, 로그 8, 로그 9, 로그 10]
+    evidence: [로그 2, 로그 3, 로그 4, 로그 5, 로그 6, 로그 7, 로그 8, 로그 10, 관찰 1]
     attributes:
       validity_issue: {type: boolean, evidence: [로그 2, 로그 3, 로그 4, 로그 6, 로그 7, 로그 8, 로그 10]}
       curriculum_issue: {type: boolean, evidence: [로그 9]}
-      verdict: {type: enum, values: [USE, REVISE, HOLD], evidence: [로그 1, 로그 2, 로그 3, 로그 4, 로그 5, 로그 6, 로그 7, 로그 8]}
-      reason: {type: string, evidence: [로그 1, 로그 2, 로그 3, 로그 4, 로그 5, 로그 6, 로그 7, 로그 8, 로그 9, 로그 10]}
+      verdict: {type: enum, values: [USE, REVISE, HOLD, REJECT], note: "값별 근거 — USE: 로그 2(필요에 따라 사용) / REVISE: 로그 3·4·5·6·7·8(조건·풀이 수정) / HOLD: 로그 2(보관) / REJECT: 관찰 1(검수 장부 reject 15건)", evidence: [로그 2, 로그 3, 로그 4, 로그 5, 로그 6, 로그 7, 로그 8, 관찰 1]}
+      reason: {type: string, evidence: [로그 3, 로그 4, 로그 6, 로그 7, 로그 8, 로그 9, 로그 10]}
       reviewer_type: {type: enum, values: [SELF, PEER, AI], evidence: [로그 2, 로그 3, 로그 4, 로그 6, 로그 8]}
+      approval_status: {type: enum, values: [PROVISIONAL, APPROVED], note: AI가 낸 판정은 항상 PROVISIONAL이고 APPROVED는 수학 강사의 최종 사용 승인에만 쓴다, design_rule: 잠정 판정과 최종 승인을 구분하는 표지는 제품 설계 결정이다, evidence: [로그 4]}
     relations:
       - evaluates: Question
-        evidence: [로그 1, 로그 2, 로그 3, 로그 4, 로그 5, 로그 6, 로그 7, 로그 8, 로그 9, 로그 10]
+        evidence: [로그 2, 로그 3, 로그 4, 로그 5, 로그 8, 관찰 1]
       - identifies: Condition
         evidence: [로그 2, 로그 3, 로그 4, 로그 6, 로그 7, 로그 8, 로그 10]
 

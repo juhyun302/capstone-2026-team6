@@ -34,11 +34,12 @@
 
 ## 5. 인터페이스
 
-`generate_linked_question`은 사용자에게 제공할 논리적 호출과 입출력 형태를 나타낸다.
+`generate_linked_question`과 `review_candidate`는 사용자에게 제공할 논리적 호출과 입출력 형태를 나타낸다.
 
-- `generate_linked_question` — 입력: `{source_question: {problem: {image?, text?}, explanation: {image?, text?}}, intended_use, target_level, curriculum_scope}` → 출력: `{candidate_question: {statement, solution}, solution_idea: {concept, key_elements[2], mechanism, transferable?}, review_result: {validity_issue, curriculum_issue, verdict, reason, reviewer_type}}`. `text`에는 수식 표현을 포함할 수 있고, 문제와 해설 각각에 이미지·텍스트 중 하나 이상이 필요하다. 두 형식을 함께 보내도 된다.
-- 생성 직후의 `review_result`는 AI가 제시하는 **잠정 검토 기록**이다. `verdict`가 `USE`여도 사람의 검수 통과를 뜻하지 않는다.
-- 원문 해설에서 근거 있는 핵심 요소 두 개나 그 연결 메커니즘을 확인할 수 없을 때 → `QUESTION_ERROR`와 이유를 반환하고 후보를 만들지 않는다. 이미지가 판독 불가이거나 이미지·텍스트 내용이 충돌하면 추측하지 않고 확인이 필요한 부분을 반환한다. (AC2, AC8)
+- `generate_linked_question` — 입력: `{source_question: {problem: {image?, text?}, explanation: {image?, text?}}, intended_use, target_level, curriculum_scope}` → 출력: `{candidate_question: {statement, solution}, solution_idea: {concept, key_elements[2], mechanism, transferable?}, review_result: {validity_issue, curriculum_issue, verdict, reason, reviewer_type, approval_status}}`. `text`에는 수식 표현을 포함할 수 있고, 문제와 해설 각각에 이미지·텍스트 중 하나 이상이 필요하다. 두 형식을 함께 보내도 된다.
+- `review_candidate` — 입력: `{source_question: {problem: {image?, text?}, explanation: {image?, text?}}, candidate_question: {statement, solution}, curriculum_scope}` → 출력: `{review_result: {validity_issue, curriculum_issue, verdict, reason, reviewer_type, approval_status}}`. 이미 만들어진 후보를 새로 생성하지 않고 검토만 한다. 사람이 결함 여부를 확정한 후보를 넣어 AC3·AC4·AC5를 판정하는 입구다.
+- 생성 직후의 `review_result`는 AI가 제시하는 **잠정 검토 기록**이다. `verdict`가 `USE`여도 사람의 검수 통과를 뜻하지 않는다. AI가 낸 `review_result`의 `approval_status`는 항상 `PROVISIONAL`이며, `APPROVED`는 수학 강사의 최종 사용 승인에만 쓴다.
+- 원문 해설에서 근거 있는 핵심 요소 두 개나 그 연결 메커니즘을 확인할 수 없을 때 → `QUESTION_ERROR`와 이유를 반환하고 후보를 만들지 않는다. 이미지가 판독 불가이거나 이미지·텍스트 내용이 충돌하면 추측하지 않고 확인이 필요한 부분을 반환한다. (AC2, AC9)
 
 ## 6. 수용 기준
 
@@ -48,14 +49,15 @@
 |---|---|---|---|
 | AC1 | 이벤트 기반 | 원본문항과 해설에서 풀이 아이디어를 추출할 때, Aleph는 `SolutionIdea` 스키마에 맞게 근거 있는 핵심 풀이 요소 두 개와 두 요소의 연결 메커니즘을 출력한다. | 정상 골든 케이스에서 `key_elements`가 정확히 두 개이고 `mechanism`이 비어 있지 않으며 JSON 스키마 검증을 통과한다. |
 | AC2 | 예외 대응 | 해설에서 근거 있는 핵심 풀이 요소 두 개나 그 연결을 확인할 수 없을 때, Aleph는 `QUESTION_ERROR`와 이유를 반환하고 후보 생성을 진행하지 않는다. | 한 요소만 확인되는 입력에서 임의의 두 번째 요소나 후보 문항이 나오면 실패한다. |
-| AC3 | 상시 적용 | Aleph가 후보 문항을 제시할 때마다, 원문에서 추출한 두 요소와 연결 메커니즘이 후보 풀이에서 어떻게 응용됐는지 `ReviewResult.reason`에 기록한다. 원문의 수치·기호만 바꾼 후보는 잠정 `ReviewResult.verdict=USE`로 표시하지 않는다. | 두 요소 중 하나의 역할이나 연결 근거가 빠지면 실패한다. 전문가가 메커니즘이 응용되지 않았거나 수치·기호만 바뀌었다고 표시한 골든 케이스를 `USE`로 판정해도 실패한다. |
+| AC3 | 이벤트 기반 | Aleph가 후보 문항을 제시할 때마다, 원문에서 추출한 두 요소와 연결 메커니즘이 후보 풀이에서 어떻게 응용됐는지 `ReviewResult.reason`에 기록한다. 원문의 수치·기호만 바꾼 후보는 잠정 `ReviewResult.verdict=USE`로 표시하지 않는다. | 두 요소 중 하나의 역할이나 연결 근거가 빠지면 실패한다. 전문가가 메커니즘이 응용되지 않았거나 수치·기호만 바뀌었다고 표시한 골든 케이스를 `USE`로 판정해도 실패한다. |
 | AC4 | 예외 대응 | 반례·정의역 누락·경계값 오류가 확인된 후보를 검토할 때, Aleph는 `ReviewResult.validity_issue=true`와 이유를 제시하고 잠정 `USE`를 추천하지 않는다. | 로그 3, 4, 6, 7, 8, 10 유형의 오류가 확인된 골든 케이스에서 결함을 놓치거나 `USE`를 추천하면 실패한다. |
 | AC5 | 예외 대응 | 교육과정 범위를 벗어난 후보를 검토할 때, Aleph는 `ReviewResult.curriculum_issue=true`와 이유를 제시하고 잠정 `USE`를 추천하지 않는다. | 로그 9 유형의 교육과정 이탈이 확인된 골든 케이스에서 결함을 놓치거나 `USE`를 추천하면 실패한다. |
 | AC6 | 상시 적용 | 실제 학생 풀이 데이터가 없으면, Aleph는 `DifficultyProfile.student_verified=true`나 실측 정답률이라고 표현한 값을 만들지 않는다. | 학생 풀이 데이터가 없는 케이스에 검증됨 표시나 실측 수치가 있으면 실패한다. |
-| AC7 | 이벤트 기반 | 후보 생성이 끝나면, Aleph는 문항·풀이와 잠정 `ReviewResult.verdict`, `reason`을 함께 제시하고 이를 최종 사용 승인으로 표시하지 않는다. | 후보만 있고 풀이·검토 이유가 빠지거나 AI의 잠정 판정을 최종 승인으로 표시하면 실패한다. |
-| AC8 | 이벤트 기반 | 원문·해설이 이미지와 수식·텍스트 중 한 형식 또는 두 형식의 조합으로 입력되면, Aleph는 확인 가능한 문항·수식을 읽어 동일한 풀이 요소 추출 흐름으로 처리한다. | 같은 문항의 이미지·텍스트·혼합 입력 골든 케이스에서 핵심 두 요소가 일치해야 한다. 흐리거나 서로 충돌하는 입력에서 수식을 지어내면 실패한다. |
+| AC7 | 이벤트 기반 | 후보 생성이 끝나면, Aleph는 문항·풀이와 잠정 `ReviewResult.verdict`, `reason`을 함께 제시하고 이를 최종 사용 승인으로 표시하지 않는다(`ReviewResult.approval_status=PROVISIONAL`). | 후보만 있고 풀이·검토 이유가 빠지거나 AI의 잠정 판정을 최종 승인으로 표시하면 실패한다. AI가 낸 `review_result`의 `approval_status`가 `PROVISIONAL`이 아니면 실패한다. |
+| AC8 | 이벤트 기반 | 원문·해설이 이미지와 수식·텍스트 중 한 형식 또는 두 형식의 조합으로 입력되면, Aleph는 확인 가능한 문항·수식을 읽어 동일한 풀이 요소 추출 흐름으로 처리한다. | 같은 문항의 이미지·텍스트·혼합 입력 골든 케이스에서 핵심 두 요소가 일치해야 한다. |
+| AC9 | 예외 대응 | 원문·해설 이미지가 판독 불가이거나 이미지와 텍스트의 내용이 서로 충돌할 때, Aleph는 수식을 추측하지 않고 확인이 필요한 부분을 반환한다. | 흐리거나 서로 충돌하는 입력 골든 케이스에서 수식을 지어내면 실패한다. |
 
-AC4·AC5는 사람이 오류 여부를 확정한 골든 케이스와 AI의 **잠정 검토 결과**를 대조한다. AI의 검토는 최종 사용 판정을 대신하지 않는다.
+AC3·AC4·AC5는 사람이 오류 여부를 확정한 골든 케이스를 `review_candidate`로 입력해 AI의 **잠정 검토 결과**와 대조한다. AI의 검토는 최종 사용 판정을 대신하지 않는다.
 
 **스파이크에서 확인한 AC4 점검 사례:** [Artist 미적분 Main 재실험 A1](spikes/artist_calculus_retest.md)에서 짝수 번째 부분합의 수렴만 보고 공비 `−1`을 바로 배제한 최초 해설의 누락을 발견했다. 같은 유형의 경계값이 있는 문항에서는 예외를 원문 조건으로 배제하는 이유까지 풀이에 있어야 한다. 사람 검토에서도 A1은 해설 완결성 미흡으로 불통과했으며, 이 사례를 향후 AC4 골든 케이스의 후보로 보관한다.
 
