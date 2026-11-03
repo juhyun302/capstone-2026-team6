@@ -41,9 +41,28 @@
 - 생성 직후의 `review_result`는 AI가 제시하는 **잠정 검토 기록**이다. `verdict`가 `USE`여도 사람의 검수 통과를 뜻하지 않는다. AI가 낸 `review_result`의 `approval_status`는 항상 `PROVISIONAL`이며, `APPROVED`는 수학 강사의 최종 사용 승인에만 쓴다.
 - 원문 해설에서 근거 있는 핵심 요소 두 개나 그 연결 메커니즘을 확인할 수 없을 때 → `QUESTION_ERROR`와 이유를 반환하고 후보를 만들지 않는다. 이미지가 판독 불가이거나 이미지·텍스트 내용이 충돌하면 추측하지 않고 확인이 필요한 부분을 반환한다. (AC2, AC9)
 
+### 5.1. 풀이 아이디어 출력 검증 — AC1·AC2의 세부 규칙
+
+`validate_solution_idea(raw_output: str, *, comparison_available: bool = False)`는 모델 원출력 문자열을 검사한다. `comparison_available`은 호출부가 전달하는 비교 근거 유무이며, 이 함수가 원문과 후보의 풀이를 직접 비교하지는 않는다. `raw_output`은 문자열, `comparison_available`은 boolean이어야 하며, 다른 타입을 넘기면 `TypeError`로 처리한다.
+
+반환 키는 `{status, error_code, reason, solution_idea}`다. 구조 검사에 통과하면 `status=OK`, `error_code=null`, `reason=null`과 해석된 입력 객체를 그대로 반환한다. 실패하면 아래 상태·오류 코드, 비어 있지 않은 이유와 `solution_idea=null`을 반환한다.
+
+| 검사 순서 | 조건 | 상태 | 오류 코드 |
+|---|---|---|---|
+| 1 | JSON 해석에 실패하거나 중복 객체 키 또는 비표준 상수(`NaN`, `Infinity`, `-Infinity`)가 있다. | `OUTPUT_ERROR` | `JSON_INVALID` |
+| 2 | 기존 `SolutionIdea` 스키마를 위반한다. 필수 키 생략, 추가 키, 잘못된 타입, 요소 개수·중복, 빈 문자열을 포함한다. | `OUTPUT_ERROR` | `SCHEMA_INVALID` |
+| 3 | null이 아닌 `concept`, `mechanism` 또는 `key_elements`의 문자열이 공백으로만 구성된다. | `OUTPUT_ERROR` | `EMPTY_TEXT` |
+| 4 | `comparison_available=false`인데 `transferable`이 있다. `transferable=false`도 이 조건에 해당한다. | `OUTPUT_ERROR` | `COMPARISON_REQUIRED` |
+| 5 | `key_elements=null`이다. | `QUESTION_ERROR` | `MISSING_ELEMENTS` |
+| 6 | `mechanism=null`이다. | `QUESTION_ERROR` | `MISSING_MECHANISM` |
+
+위 순서에서 처음 확인한 오류 하나를 반환한다. 1~4번 검사를 통과하고 두 필수 값이 모두 null이면 `MISSING_ELEMENTS`를 반환한다. `concept=null`만으로는 오류로 처리하지 않는다. 형식이 잘못된 모델 출력과 필수 풀이 정보가 부족한 출력을 구분하며, 누락된 정보를 채우거나 출력을 정정해 통과시키지 않는다.
+
+이 함수의 `OK`는 구조 검사 통과를 뜻한다. 원문 근거, 두 요소의 의미상 구별, 수학적 타당성 및 후보 생성 중단은 별도 검증 대상이다. 구현은 [`validation.py`](../src/aleph/validation.py), 골든 기대값은 [`golden_cases.yaml`](../tests/harness/golden_cases.yaml), 승인·검증 이력은 [위임·검증 기록 E절](prompts/delegation_validation.md#e-검증-루프-기록-사람이-쓴다)에 둔다.
+
 ## 6. 수용 기준
 
-각 AC의 조건 유형을 표시했다. AC 번호는 `tests/harness/golden_cases.yaml`의 골든 케이스와 연결할 예정이다.
+각 AC의 조건 유형을 표시했다. 현재 `tests/harness/golden_cases.yaml`의 33개 케이스는 AC1의 구조 검사와 AC2의 null 후처리를 검사하며, 각 케이스의 `ac`·`note`로 근거를 연결한다. 원문 근거·의미상 구별, 후보 생성 중단과 AC3~AC9는 현재 골든 테스트의 완료 범위에 포함하지 않는다.
 
 | 번호 | 유형 | 수용 기준 | 판정 예시 |
 |---|---|---|---|

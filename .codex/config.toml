@@ -1,0 +1,6 @@
+# 강의 5 검토용 프로젝트 설정. 상위 관리 정책과 프로젝트 신뢰 상태가 우선한다.
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+network_access = false
