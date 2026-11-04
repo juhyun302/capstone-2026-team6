@@ -1,7 +1,7 @@
 # 강의 5 — 출력 검증기 위임·검증 기록
 
 **검토 상태: 2026-10-28 사용자 최종 승인 완료. `feature/my-work` push 및 원격 CI 통과. 2026-11-03 PR #8로 main 병합, 병합 커밋 `9689171`의 CI 통과.**
-승인 범위는 현재 강의 5 문서·골든 케이스·테스트·구현과 추가 판정 규칙이다. 지침 자동 로드와 `$aleph-check` 명시 호출은 2026-11-04 저장소 루트에서 시작한 새 Codex 세션으로 확인했다(G절). 프로젝트 권한 설정의 적용 출처와 자동 호출 끄기의 실제 동작은 미확인으로 유지한다.
+승인 범위는 현재 강의 5 문서·골든 케이스·테스트·구현과 추가 판정 규칙이다. 지침 자동 로드, `$aleph-check` 명시 호출, 자동 호출 끄기와 저장소 권한 설정의 적용은 2026-11-04 저장소 루트에서 시작한 새 Codex 세션으로 확인했다(G절). 저장소 설정의 승인 방식은 Codex 앱 권한 모드가 "사용자 지정(config.toml)"일 때만 적용된다.
 기준 커밋: `efbfff2f9071f2ac8cce4eb7da0fe514a79ea8ce`. 승인된 구현 커밋은 `aa0677c32a2224a04e8655d80f0e492b3e8751bc`이며, 원격 실행 근거는 E·F절에 기록했다.
 
 ## A. 위임 대상 선정 (사람이 쓴다)
@@ -132,11 +132,11 @@ python -m ruff check .
 - 도구와 버전, 진입점 파일 및 로드 확인 결과: 2026-10-28 별도 세션에서 **codex-cli 0.157.1**, Python 3.12.14, Ruff 0.11.13, pytest 8.3.5를 확인했다. 앱 도구가 보고한 설치 버전은 26.1021.31345, 빌드는 21828이며 실행 중인 빌드와의 일치는 미확인이다. 진입점은 저장소 루트의 `AGENTS.md`다. 별도 세션은 대상 저장소가 아닌 `C:/Users/user/Documents/Codex/2026-10-28/5-c-users-user-documents-codex`에서 시작했다. 저장소 지침은 작업 중 직접 읽었다. 이 세션만으로는 지침 자동 로드, 프로젝트 신뢰 상태, 저장소 설정 로드를 확인하지 못했다. 별도 세션의 실행 결과는 E절에 기록했다.
   **2026-11-04 재확인(이주현):** 저장소 루트를 작업 폴더로 연 새 Codex Desktop 세션(CLI 0.166.0-alpha.5.1, `gpt-5.6-sol`)에서 확인했다. 세션 기록상 첫 사용자 메시지보다 앞에 `AGENTS.md` 전문이 자동으로 주입됐고, 첫 응답까지 도구 호출은 0건이었다. 저장소 루트는 사용자 설정에 `trusted`로 등록되어 있다. 따라서 **저장소 루트에서 시작한 세션의 `AGENTS.md` 자동 로드와 프로젝트 신뢰 상태를 확인**했다. 근거: [2026-11-04 세션 점검](evidence/2026-11-04_codex_session_check.md).
 - 허용(allow)한 명령 / 확인(ask) 대상 명령: **작업상 허용**은 저장소 읽기, `git status`, `git diff`, `git ls-files`, 프로젝트 Python으로 실행하는 Ruff·pytest다. / **사전 확인 대상**은 `git push`, 기준 파일 변경, 새 의존성 설치와 허용 범위 밖 접근이다. 현재 명시된 사용자 조건에 따라 push는 최종 검토 전 실행하지 않는다. 이 구분은 작업 규칙이며, Codex 설정에 명령별 allow/ask 목록을 등록한 것은 아니다. 저장소 설정 파일의 값은 `approval_policy="on-request"`, `sandbox_mode="workspace-write"`, `network_access=false`다. 별도 세션이 제공한 정책은 `sandbox_mode=workspace-write`, `approvals_reviewer=auto_review`, 파일시스템·네트워크 제한이다. 정확한 `approval_policy`와 저장소 설정의 실제 적용 여부는 미확인이다. 설정값만으로 push 확인이나 테스트 파일 쓰기 차단이 강제된다고 주장하지 않는다.
-  **2026-11-04 재확인(이주현):** 저장소 루트 세션의 실행 정책은 `approval_policy=on-request`, `sandbox=workspace-write`, `network_access=false`로 저장소 설정값과 같았다. 다만 저장소 밖 상위 폴더에서 연 2026-11-03 세션도 같은 값이었으므로, 이 값이 `.codex/config.toml`에서 왔는지 앱 기본값인지는 구분하지 못했다. **저장소 설정의 적용 출처는 미확인으로 유지**한다.
+  **2026-11-04 재확인(이주현):** 기존 값은 저장소 밖 상위 폴더에서 연 세션의 값과 같아 출처를 구분할 수 없었으므로, `.codex/config.toml`의 값 하나를 잠시 바꾸고 새 대화의 세션 기록을 확인한 뒤 즉시 원복했다. `network_access=true`는 앱 권한 모드와 관계없이 그대로 적용됐다. `approval_policy="never"`는 앱 권한 모드가 "나 대신 승인"일 때 무시되어 `on-request`·`approvals_reviewer=auto_review`가 적용됐고, "사용자 지정(config.toml)"일 때만 `never`·`approvals_reviewer=user`로 적용됐다. 원복 후 설정 파일 해시가 실험 전과 같았다. 따라서 **저장소 설정 파일은 로드되지만, 승인 방식은 앱 권한 모드가 "사용자 지정(config.toml)"일 때만 파일대로 적용**된다. 이 저장소의 위임 작업은 새 대화마다 이 모드를 확인한 뒤 시작한다. 근거: [2026-11-04 세션 점검](evidence/2026-11-04_codex_session_check.md)의 ④.
 - 판정 기준 보호: 금지 사항의 위치 **`AGENTS.md` 4절 첫 항목과 skip·xfail 금지 항목** / 수용 전 확인 방법 **기준 커밋과 tracked 변경을 비교하고, untracked 파일을 별도로 열어 확인한다.** `git diff efbfff2f9071f2ac8cce4eb7da0fe514a79ea8ce -- tests src/aleph/schemas docs/spikes/evidence`, `git ls-files --others --exclude-standard`, 로컬 `../lecture05-ready-verification/mutation_summary.json`의 해시를 함께 사용한다. 테스트 파일은 쓰기 가능한 경로에 있으므로 지침만으로 쓰기가 차단되지는 않는다.
 - 사용하는 코딩 에이전트와 각 항목의 파일 위치: **Codex**. 지침 로드는 `AGENTS.md`, 권한 설정은 `.codex/config.toml`, 재사용 명령 본문은 `.agents/skills/aleph-check/SKILL.md`, 자동 호출 정책은 `.agents/skills/aleph-check/agents/openai.yaml`, 작업별 범위·중단 조건·보고는 이 문서 C·D·G절, CI는 `.github/workflows/tests.yml`에 둔다. Codex 대응 경로를 사용하므로 Claude 전용 파일은 만들지 않는다.
 - 등록한 재사용 명령과 실행 범위(검사와 보고 / 수정 포함), 자동 호출 여부: **`$aleph-check` — 검사와 보고만 수행, 수정 없음, 자동 호출 끄기로 설정.** Ruff → pytest 수집 → 전체 pytest를 실행한다. 소스·테스트·골든·fixture·설정 수정과 패키지 자동 설치는 하지 않는다. `agents/openai.yaml`에는 `policy.allow_implicit_invocation: false`를 지정했다. **별도 세션의 등록 스킬 목록에는 없었고, 명시적 호출 성공은 미확인**이다. 스킬 파일을 직접 읽고 절차를 수동 실행해 Ruff와 최종 54개 테스트를 통과했다. 수동 실행을 스킬 호출 성공으로 기록하지 않는다.
-  **2026-11-04 재확인(이주현):** 저장소 루트 세션에서 `$aleph-check`를 보내자 `.agents/skills/aleph-check/SKILL.md`로 연결된 스킬 참조로 기록됐다. 에이전트는 스킬 지시대로 `.venv` Python으로 Ruff(종료 코드 0), pytest 수집(54개, 종료 코드 0), 전체 pytest(**54 passed**, 종료 코드 0)를 실행했고, 파일 수정과 패키지 설치는 없었다. 따라서 **`$aleph-check`의 명시 호출 성공을 확인**했다. `$` 없이 요청했을 때 자동으로 호출되지 않는지는 확인하지 않았다. 근거: [2026-11-04 세션 점검](evidence/2026-11-04_codex_session_check.md).
+  **2026-11-04 재확인(이주현):** 저장소 루트 세션에서 `$aleph-check`를 보내자 `.agents/skills/aleph-check/SKILL.md`로 연결된 스킬 참조로 기록됐다. 에이전트는 스킬 지시대로 `.venv` Python으로 Ruff(종료 코드 0), pytest 수집(54개, 종료 코드 0), 전체 pytest(**54 passed**, 종료 코드 0)를 실행했고, 파일 수정과 패키지 설치는 없었다. 따라서 **`$aleph-check`의 명시 호출 성공을 확인**했다. 새 대화에서 `$` 없이 "테스트 진행해줘"라고 요청했을 때는 에이전트가 `AGENTS.md`의 검사 명령으로 테스트를 직접 실행했지만 `SKILL.md`를 읽지 않았고, 세션 기록에 `aleph-check`가 한 번도 나오지 않았다. 따라서 **자동 호출 끄기도 동작함을 확인**했다. 근거: [2026-11-04 세션 점검](evidence/2026-11-04_codex_session_check.md).
 - 작업별 중단 조건과 보고 방법: **테스트 하니스 보완 최대 3회, 구현 보완 최대 3회, `$aleph-check`는 검사 묶음 1회**로 제한한다. 기준 변경 필요, 미명세, 문서 충돌, 실행 권한·의존성 문제를 만나면 영향을 받는 작업을 중단한다. 실패 케이스, 실행 명령·종료 코드, 원인, 변경이 필요한 파일과 제안을 보고한다. C절에는 하니스 보완을, E절에는 구현·재검증 회차를 기록한다. 통과를 만들기 위한 케이스 삭제나 skip·xfail 추가는 금지한다.
   이번 수동 점검에서는 실행자가 지정한 임시 경로 오류를 보정해 pytest를 1회 추가 실행한 예외를 E절에 기록했다. 보고서에 따르면 검사 전후 431개 파일의 내용 해시와 Git 상태가 같았다. `.git`과 `.venv` 내부는 해시 비교에서 제외했다.
 
@@ -145,7 +145,7 @@ python -m ruff check .
 | 연결 항목 | 에이전트 하니스에 두는 곳 | Aleph |
 |---|---|---|
 | 실행 명령 | `AGENTS.md` 6·7절, 이 문서 C·D절, `$aleph-check` | Ruff, pytest 수집, 전체 테스트. 골든 33개 전수 통과와 skip·xfail 0건 |
-| 실행 권한 | `.codex/config.toml`, 현재 세션의 상위 정책 | workspace-write / on-request / 네트워크 비활성. 프로젝트 설정의 실제 적용 여부와 작업상 허용을 구분 |
+| 실행 권한 | `.codex/config.toml`, 현재 세션의 상위 정책, Codex 앱 권한 모드 | workspace-write / on-request / 네트워크 비활성. 승인 방식은 앱 권한 모드 "사용자 지정(config.toml)"에서만 파일대로 적용(2026-11-04 확인). 프로젝트 설정의 실제 적용 여부와 작업상 허용을 구분 |
 | 판정 기준 보호 | `AGENTS.md` 4절, 이 문서 F·G절 | 승인 없는 기준 변경 금지. 기준 커밋 diff, 새 파일, 주입 전후 해시 대조 |
 | 완료의 정의 | `AGENTS.md` 6절 | 필수 골든 통과, Ruff 통과, 개념·타입 일관성, 변경과 한계의 근거 보고 |
 | 결과 보고 | 이 문서 D·E절, `$aleph-check` | 실제 실행 출력, 골든·보조 수, passed/failed/skipped/xfailed, 케이스별 이유 |
@@ -167,4 +167,4 @@ python -m venv .venv
 ```
 
 macOS·Linux는 `.venv/bin/python`을 사용한다. 골든만 실행할 때는 `python -m pytest tests/test_validation_golden.py::test_validation_golden -v -rs`를 쓴다.
-자동 인식 재확인은 저장소 루트를 시작 작업 폴더로 지정한 새 세션에서 수행한다. 지침과 `$aleph-check`의 인식 근거를 먼저 확인하고, 등록 명령으로 실행한 결과를 수동 실행과 구분해 기록한다. 2026-11-04 점검은 이 절차로 수행했으며, 로컬 환경은 Python 3.13.3이었다(CI는 3.12). 결과는 [2026-11-04 세션 점검](evidence/2026-11-04_codex_session_check.md)에 있다.
+자동 인식 재확인은 저장소 루트를 시작 작업 폴더로 지정한 새 세션에서 수행한다. 지침과 `$aleph-check`의 인식 근거를 먼저 확인하고, 등록 명령으로 실행한 결과를 수동 실행과 구분해 기록한다. Codex 앱에서는 저장소 폴더를 프로젝트로 열고, 새 대화의 권한 모드를 "사용자 지정(config.toml)"으로 확인한 뒤 시작한다. 2026-11-04 점검은 이 절차로 수행했으며, 로컬 환경은 Python 3.13.3이었다(CI는 3.12). 결과는 [2026-11-04 세션 점검](evidence/2026-11-04_codex_session_check.md)에 있다.
