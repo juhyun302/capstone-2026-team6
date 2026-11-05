@@ -1,0 +1,217 @@
+# 2026-11-05 윤결 승인. 케이스와 기대값의 변경에는 별도 승인이 필요하다.
+# 모델을 호출하지 않는다. 미리 적은 출력으로 단계 간 흐름만 판정하며 후보의 수학적 품질은 판정하지 않는다.
+version: 1
+review_status: HUMAN_APPROVED
+base_commit: f3801f08a39b6ec2d5d9147ce07e7899b39c9a84
+function: aleph.generation.generate_candidate
+cases:
+- name: both_elements_make_one_candidate
+  kind: normal
+  ac:
+  - AC1
+  parser_outputs:
+  - '{"concept":"도함수 부호 변화와 극값","key_elements":["도함수의 부호 변화로 극값 위치를 판단한다","도함수를 적분하고 초기값으로 원함수를 구한다"],"mechanism":"부호 변화로 찾은 위치를 적분으로 구한 원함수에 대입해 극값을 계산한다"}'
+  generator_outputs:
+  - '{"statement":"함수 $f(x)$에 대하여 $f''(x)=x^2-4x+3$이고 $f(1)=5$일 때, 함수 $f(x)$의 극솟값을 구하시오.","solution":"$f''(x)=(x-1)(x-3)$이므로 $x=3$에서 극소이다. 적분하여 $f(1)=5$를 대입하면 극솟값은 $\\frac{11}{3}$이다."}'
+  expect_status: OK
+  expect_error_code: null
+  expect_parser_calls: 1
+  expect_generator_calls: 1
+  expect_idea:
+    concept: 도함수 부호 변화와 극값
+    key_elements:
+    - 도함수의 부호 변화로 극값 위치를 판단한다
+    - 도함수를 적분하고 초기값으로 원함수를 구한다
+    mechanism: 부호 변화로 찾은 위치를 적분으로 구한 원함수에 대입해 극값을 계산한다
+  expect_candidate:
+    statement: 함수 $f(x)$에 대하여 $f'(x)=x^2-4x+3$이고 $f(1)=5$일 때, 함수 $f(x)$의 극솟값을 구하시오.
+    solution: $f'(x)=(x-1)(x-3)$이므로 $x=3$에서 극소이다. 적분하여 $f(1)=5$를 대입하면 극솟값은 $\frac{11}{3}$이다.
+  note: 두 요소와 메커니즘이 확인되면 후보를 하나 만든다. 후보의 수학적 타당성은 이 케이스가 판정하지 않는다.
+- name: missing_elements_stops_before_generation
+  kind: forbidden
+  ac:
+  - AC2
+  parser_outputs:
+  - '{"concept":"미분","key_elements":null,"mechanism":null}'
+  generator_outputs: []
+  expect_status: QUESTION_ERROR
+  expect_error_code: MISSING_ELEMENTS
+  expect_parser_calls: 1
+  expect_generator_calls: 0
+  expect_idea: null
+  expect_candidate: null
+  note: 두 요소를 확인하지 못하면 후보를 만들지 않고, 같은 입력을 다시 요청하지도 않는다.
+- name: missing_mechanism_stops_before_generation
+  kind: forbidden
+  ac:
+  - AC2
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["뒤 항에서 앞 항을 추적한다","합으로 분기를 판별한다"],"mechanism":null}'
+  generator_outputs: []
+  expect_status: QUESTION_ERROR
+  expect_error_code: MISSING_MECHANISM
+  expect_parser_calls: 1
+  expect_generator_calls: 0
+  expect_idea: null
+  expect_candidate: null
+  note: 요소가 둘이어도 연결을 확인하지 못하면 후보를 만들지 않는다.
+- name: malformed_idea_is_retried_once
+  kind: boundary
+  ac:
+  - AC1
+  parser_outputs:
+  - '두 요소는 다음과 같습니다.'
+  - '{"concept":"수열","key_elements":["뒤 항에서 앞 항을 추적한다","합으로 분기를 판별한다"],"mechanism":"추적한 후보를 합 조건으로 걸러 분기를 정한다"}'
+  generator_outputs:
+  - '{"statement":"새 문항","solution":"새 풀이"}'
+  expect_status: OK
+  expect_error_code: null
+  expect_parser_calls: 2
+  expect_generator_calls: 1
+  expect_idea:
+    concept: 수열
+    key_elements:
+    - 뒤 항에서 앞 항을 추적한다
+    - 합으로 분기를 판별한다
+    mechanism: 추적한 후보를 합 조건으로 걸러 분기를 정한다
+  expect_candidate:
+    statement: 새 문항
+    solution: 새 풀이
+  note: 형식 오류는 parse_query.md의 재시도 정책대로 한 번만 다시 요청한다.
+- name: malformed_idea_twice_stops
+  kind: forbidden
+  ac:
+  - AC1
+  parser_outputs:
+  - 'not json'
+  - 'still not json'
+  generator_outputs: []
+  expect_status: OUTPUT_ERROR
+  expect_error_code: JSON_INVALID
+  expect_parser_calls: 2
+  expect_generator_calls: 0
+  expect_idea: null
+  expect_candidate: null
+  note: 두 번째 형식 오류에서 멈추고 후보를 만들지 않는다.
+- name: transferable_without_candidate_stops
+  kind: forbidden
+  ac:
+  - AC1
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결","transferable":true}'
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결","transferable":true}'
+  generator_outputs: []
+  expect_status: OUTPUT_ERROR
+  expect_error_code: COMPARISON_REQUIRED
+  expect_parser_calls: 2
+  expect_generator_calls: 0
+  expect_idea: null
+  expect_candidate: null
+  note: 후보가 없는 추출 단계에서 나온 전이 판단은 근거가 없으므로 다음 단계로 넘기지 않는다.
+- name: malformed_candidate_is_retried_once
+  kind: boundary
+  ac:
+  - AC1
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  generator_outputs:
+  - '```json {"statement":"새 문항","solution":"새 풀이"} ```'
+  - '{"statement":"새 문항","solution":"새 풀이"}'
+  expect_status: OK
+  expect_error_code: null
+  expect_parser_calls: 1
+  expect_generator_calls: 2
+  expect_idea:
+    concept: 수열
+    key_elements:
+    - 요소 하나
+    - 요소 둘
+    mechanism: 연결
+  expect_candidate:
+    statement: 새 문항
+    solution: 새 풀이
+  note: 코드 펜스를 벗겨 고치지 않고 다시 요청한다. 추출은 다시 호출하지 않는다.
+- name: malformed_candidate_twice_keeps_idea
+  kind: boundary
+  ac:
+  - AC1
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  generator_outputs:
+  - '{"statement":"새 문항"}'
+  - '{"statement":"새 문항"}'
+  expect_status: OUTPUT_ERROR
+  expect_error_code: SCHEMA_INVALID
+  expect_parser_calls: 1
+  expect_generator_calls: 2
+  expect_idea:
+    concept: 수열
+    key_elements:
+    - 요소 하나
+    - 요소 둘
+    mechanism: 연결
+  expect_candidate: null
+  note: 추출은 유효했으므로 풀이 아이디어는 남기고 후보만 비운다.
+- name: candidate_cannot_carry_its_own_verdict
+  kind: forbidden
+  ac:
+  - AC7
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  generator_outputs:
+  - '{"statement":"새 문항","solution":"새 풀이","verdict":"USE"}'
+  - '{"statement":"새 문항","solution":"새 풀이","approval_status":"APPROVED"}'
+  expect_status: OUTPUT_ERROR
+  expect_error_code: SCHEMA_INVALID
+  expect_parser_calls: 1
+  expect_generator_calls: 2
+  expect_idea:
+    concept: 수열
+    key_elements:
+    - 요소 하나
+    - 요소 둘
+    mechanism: 연결
+  expect_candidate: null
+  note: 생성 단계는 자기 후보를 판정하거나 승인할 수 없다.
+- name: blank_solution_is_rejected
+  kind: forbidden
+  ac:
+  - AC7
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  generator_outputs:
+  - '{"statement":"새 문항","solution":"   "}'
+  - '{"statement":"새 문항","solution":"   "}'
+  expect_status: OUTPUT_ERROR
+  expect_error_code: EMPTY_TEXT
+  expect_parser_calls: 1
+  expect_generator_calls: 2
+  expect_idea:
+    concept: 수열
+    key_elements:
+    - 요소 하나
+    - 요소 둘
+    mechanism: 연결
+  expect_candidate: null
+  note: 풀이가 빠진 후보를 내놓지 않는다.
+- name: duplicate_key_candidate_is_rejected
+  kind: boundary
+  ac:
+  - AC1
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  generator_outputs:
+  - '{"statement":"하나","statement":"둘","solution":"풀이"}'
+  - '{"statement":"하나","statement":"둘","solution":"풀이"}'
+  expect_status: OUTPUT_ERROR
+  expect_error_code: JSON_INVALID
+  expect_parser_calls: 1
+  expect_generator_calls: 2
+  expect_idea:
+    concept: 수열
+    key_elements:
+    - 요소 하나
+    - 요소 둘
+    mechanism: 연결
+  expect_candidate: null
+  note: 같은 키가 두 번 나온 출력에서 어느 쪽 본문이 후보인지 임의로 고르지 않는다.
