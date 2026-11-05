@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BlindSolution",
+  "description": "후보의 풀이와 원문을 보지 않고 문항만으로 푼 결과. 검토 단계의 비교 자료이며 판정이 아니다.",
+  "type": "object",
+  "properties": {
+    "status": {
+      "enum": ["solved", "ambiguous", "inconsistent", "unsolved"],
+      "description": "solved: 유일한 답을 얻음. ambiguous: 복수 답 또는 다중 해석. inconsistent: 조건 모순. unsolved: 정보 부족이나 미해결."
+    },
+    "answer": {
+      "type": "string",
+      "description": "확정한 답. 확정하지 못하면 빈 문자열."
+    },
+    "solution": {
+      "type": "string",
+      "minLength": 1,
+      "description": "풀이, 또는 풀지 못한 구체적인 이유."
+    },
+    "issues": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "description": "모순, 비유일성, 누락 조건, 범위 이탈. 없으면 빈 배열."
+    }
+  },
+  "required": ["status", "answer", "solution", "issues"],
+  "additionalProperties": false
+}
