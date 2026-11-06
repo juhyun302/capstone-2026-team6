@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { motion, useReducedMotion } from 'motion/react'
 import { ArrowRight, Check, Circle, CircleAlert, ImageUp, Sigma, X } from 'lucide-react'
 import { MathText } from '../components/Math'
-import { createJob } from '../api/mock'
+import { api } from '../api'
 import { SAMPLE_SOURCE } from '../api/fixtures'
-import { CURRICULUM_SCOPE, DEFAULT_INTENDED_USE, DEFAULT_TARGET_LEVEL } from '../api/config'
+import { CURRICULUM_OPTIONS, DEFAULT_INTENDED_USE, DEFAULT_TARGET_LEVEL } from '../api/config'
 import type { GenerationRequest } from '../api/types'
 
 type Mode = 'text' | 'image'
@@ -26,6 +26,7 @@ export function NewRequest() {
   const navigate = useNavigate()
   const [problem, setProblem] = useState<PartState>(empty)
   const [explanation, setExplanation] = useState<PartState>(empty)
+  const [scope, setScope] = useState<string>(CURRICULUM_OPTIONS[0])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [touched, setTouched] = useState(false)
@@ -62,10 +63,10 @@ export function NewRequest() {
       },
       intended_use: DEFAULT_INTENDED_USE,
       target_level: DEFAULT_TARGET_LEVEL,
-      curriculum_scope: CURRICULUM_SCOPE,
+      curriculum_scope: scope,
     }
     try {
-      const { jobId } = await createJob(req)
+      const { jobId } = await api.createJob(req)
       navigate(`/jobs/${jobId}`)
     } catch (err) {
       setSubmitting(false)
@@ -76,6 +77,7 @@ export function NewRequest() {
   function fillSample() {
     setProblem({ mode: 'text', text: SAMPLE_SOURCE.statement, file: null, preview: null })
     setExplanation({ mode: 'text', text: SAMPLE_SOURCE.solution, file: null, preview: null })
+    setScope('수학Ⅱ')
   }
 
   return (
@@ -85,7 +87,7 @@ export function NewRequest() {
           <div>
             <h1>원문과 해설을 올려 주세요.</h1>
             <p className="lead" style={{ marginTop: 'var(--space-sm)' }}>
-              이미지와 수식·텍스트 중 하나면 됩니다. 두 형식을 섞어도 됩니다.
+              지금은 수식·텍스트 입력만 쓸 수 있습니다. 이미지 입력은 준비 중입니다.
             </p>
           </div>
           <div className="page-head__actions">
@@ -125,6 +127,17 @@ export function NewRequest() {
               <CheckItem ok={explanationOk}>원문 해설이 있습니다</CheckItem>
             </ul>
 
+            <label className="field">
+              <span className="field__label">교육과정 범위</span>
+              <select name="curriculum_scope" className="select" value={scope} onChange={(e) => setScope(e.target.value)}>
+                {CURRICULUM_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <div className="submit-row">
               {error && (
                 <div className="form-error" role="alert">
@@ -136,7 +149,7 @@ export function NewRequest() {
                 {submitting ? '보내는 중…' : '풀이 요소 추출하고 후보 만들기'}
                 {!submitting && <ArrowRight aria-hidden="true" />}
               </button>
-              <span className="field__hint">평균 8초. 두 요소를 찾지 못하면 후보 없이 이유만 돌려줍니다. 허용 교육과정 범위는 팀 문서로 정하며, 여기서 따로 고르지 않습니다.</span>
+              <span className="field__hint">몇 분 걸릴 수 있습니다. 두 요소를 찾지 못하면 후보 없이 이유만 돌려줍니다.</span>
             </div>
           </aside>
         </form>

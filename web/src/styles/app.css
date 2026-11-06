@@ -354,7 +354,8 @@
 .seal[data-verdict="REVISE"] { --verdict-ink: var(--color-revise); }
 .seal[data-verdict="HOLD"] { --verdict-ink: var(--color-hold); }
 .seal[data-verdict="REJECT"] { --verdict-ink: var(--color-reject); }
-.cand__seal { position: absolute; left: 34px; top: -22px; mix-blend-mode: multiply; }
+.seal[data-provisional="true"] { border-style: dashed; box-shadow: none; }
+.cand__seal { position: absolute; right: 0; top: -14px; mix-blend-mode: multiply; }
 :root[data-theme="dark"] .cand__seal { mix-blend-mode: screen; }
 
 /* Folds: always mounted, grid-rows 0fr to 1fr */

@@ -5,7 +5,8 @@ export default defineConfig({
   // VITE_BASE=./ for a relative bundle (artifact or any sub-path host)
   base: process.env.VITE_BASE ?? '/',
   plugins: [react()],
-  server: { port: 5173, strictPort: true },
+  server: { port: 5173, strictPort: true, proxy: { '/api': 'http://127.0.0.1:8000' } },
+  preview: { proxy: { '/api': 'http://127.0.0.1:8000' } },
   build: {
     chunkSizeWarningLimit: 1200,
     rollupOptions: {

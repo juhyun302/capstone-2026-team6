@@ -6,8 +6,10 @@ import { VERDICT_LABEL } from './Verdict'
 // The verdict, pressed on like a reviewer's seal. Re-presses when the verdict
 // or the reviewer changes (replayKey). Under reduced motion it is simply there.
 
-export function Seal({ verdict, note, replayKey, className }: { verdict: Verdict; note: string; replayKey: string; className?: string }) {
+export function Seal({ verdict, note, replayKey, className, provisional = false }: { verdict: Verdict; note: string; replayKey: string; className?: string; provisional?: boolean }) {
   const ref = useRef<HTMLSpanElement>(null)
+  // An AI USE is not an approval (AC7), so it must not read like the instructor's seal.
+  const label = provisional && verdict === 'USE' ? '잠정 사용' : VERDICT_LABEL[verdict]
   useEffect(() => {
     const el = ref.current
     if (!el) return
@@ -23,8 +25,8 @@ export function Seal({ verdict, note, replayKey, className }: { verdict: Verdict
     }
   }, [replayKey])
   return (
-    <span ref={ref} className={`seal${className ? ` ${className}` : ''}`} data-verdict={verdict} role="img" aria-label={`판정: ${VERDICT_LABEL[verdict]}. ${note}`}>
-      <span>{VERDICT_LABEL[verdict]}</span>
+    <span ref={ref} className={`seal${className ? ` ${className}` : ''}`} data-verdict={verdict} data-provisional={provisional} role="img" aria-label={`판정: ${label}. ${note}`}>
+      <span>{label}</span>
       <small>{note}</small>
     </span>
   )

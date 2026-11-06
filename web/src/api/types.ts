@@ -50,11 +50,13 @@ export interface CandidateQuestion {
   id: string
   statement: string
   solution: string
-  /** Where each key element of the source is applied in the candidate's solution (AC3). */
-  element_trace: [string, string]
+  /** Where each key element of the source is applied. The server writes this in `reason` (AC3). */
+  element_trace?: [string, string]
   /** The two formulas in the statement that carry the key elements, as they appear in `statement` (for the ink marks). */
   element_marks?: [string, string]
   review_result: ReviewResult
+  /** The AI's verdict, kept after a human decides. */
+  ai_review_result?: ReviewResult
 }
 
 export interface SourceSummary {
@@ -72,11 +74,9 @@ export interface GenerationResult {
   candidates: CandidateQuestion[]
 }
 
-export type QuestionErrorCode = 'MISSING_ELEMENTS' | 'MISSING_MECHANISM' | 'UNREADABLE_INPUT' | 'INPUT_CONFLICT'
-
 export interface QuestionError {
-  status: 'QUESTION_ERROR'
-  error_code: QuestionErrorCode
+  status: 'QUESTION_ERROR' | 'OUTPUT_ERROR' | 'SERVER_ERROR'
+  error_code: string
   reason: string
   /** What the user has to confirm before the parser will continue (AC9). */
   needs_confirmation?: string[]
@@ -87,6 +87,8 @@ export type JobStage = 'read' | 'extract' | 'generate' | 'review' | 'done' | 'er
 
 export interface JobEvent {
   stage: JobStage
+  /** The problem text the user sent, shown while the job runs. */
+  source_statement?: string
   /** Filled once the parser has an idea; partial while it streams. */
   solution_idea?: Partial<SolutionIdea>
   result_id?: string

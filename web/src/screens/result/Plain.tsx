@@ -4,6 +4,7 @@ import { ChevronDown } from 'lucide-react'
 import type { CandidateQuestion, GenerationResult, Verdict } from '../../api/types'
 import { MathText } from '../../components/Math'
 import { Seal } from '../../components/Seal'
+import { VERDICT_LABEL } from '../../components/Verdict'
 import { approvalSentence, checksSentence, DecideRow, ResultHead, sealNote, SourceDialog, useDecisions } from './shared'
 
 // The plain view: candidates in two columns, solution and reasons folded.
@@ -45,7 +46,7 @@ function Candidate({ index, candidate, busy, onDecide }: { index: number; candid
     <section className="cand" aria-labelledby={`cand-${candidate.id}`} data-verdict={review.verdict}>
       <div className="cand__head">
         <h2 id={`cand-${candidate.id}`}>후보 {index + 1}</h2>
-        <Seal verdict={review.verdict} note={sealNote(review)} replayKey={`${review.reviewer_type}-${review.verdict}`} className="cand__seal" />
+        <Seal verdict={review.verdict} note={sealNote(review)} provisional={review.reviewer_type === 'AI'} replayKey={`${review.reviewer_type}-${review.verdict}`} className="cand__seal" />
       </div>
       <p className="cand__verdict-note">{approvalSentence(review)}</p>
       <MathText text={candidate.statement} className="sheet__statement" />
@@ -66,13 +67,23 @@ function Candidate({ index, candidate, busy, onDecide }: { index: number; candid
         <Fold id={`rev-${candidate.id}`} open={openReview}>
           <div className="cand__review">
             <p className="cand__checks">{checksSentence(review)}</p>
-            <p className="cand__reason">{review.reason}</p>
-            <h3>두 요소가 쓰인 곳</h3>
-            <ol className="cand__trace">
-              {candidate.element_trace.map((t, i) => (
-                <li key={i}>{t}</li>
-              ))}
-            </ol>
+            <MathText text={review.reason} className="cand__reason" />
+            {review.reviewer_type !== 'AI' && candidate.ai_review_result && (
+              <>
+                <h3>AI 잠정 판정: {VERDICT_LABEL[candidate.ai_review_result.verdict]}</h3>
+                <MathText text={candidate.ai_review_result.reason} className="cand__reason" />
+              </>
+            )}
+            {candidate.element_trace && (
+              <>
+                <h3>두 요소가 쓰인 곳</h3>
+                <ol className="cand__trace">
+                  {candidate.element_trace.map((t, i) => (
+                    <li key={i}>{t}</li>
+                  ))}
+                </ol>
+              </>
+            )}
           </div>
         </Fold>
       </div>

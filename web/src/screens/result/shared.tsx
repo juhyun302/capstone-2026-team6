@@ -1,7 +1,7 @@
 import { useEffect, useState, type RefObject } from 'react'
 import { Link } from 'react-router-dom'
 import { X } from 'lucide-react'
-import { recordHumanReview } from '../../api/mock'
+import { api } from '../../api'
 import type { CandidateQuestion, GenerationResult, ReviewResult, Verdict } from '../../api/types'
 import { MathText } from '../../components/Math'
 
@@ -36,7 +36,7 @@ export function useDecisions(result: GenerationResult) {
   async function decide(candidate: CandidateQuestion, verdict: Verdict) {
     setBusy(`${candidate.id}:${verdict}`)
     try {
-      const next = await recordHumanReview(result.id, candidate.id, verdict, REASON_BY_VERDICT[verdict])
+      const next = await api.recordHumanReview(result.id, candidate.id, verdict, REASON_BY_VERDICT[verdict])
       setCandidates((list) => list.map((x) => (x.id === candidate.id ? { ...x, review_result: next } : x)))
     } finally {
       setBusy(null)
@@ -46,11 +46,21 @@ export function useDecisions(result: GenerationResult) {
 }
 
 export function DecideRow({ candidate, busy, onDecide }: { candidate: CandidateQuestion; busy: string | null; onDecide: (v: Verdict) => void }) {
-  if (candidate.review_result.reviewer_type !== 'AI') return null
+  const review = candidate.review_result
+  if (review.reviewer_type !== 'AI') return null
+  const flagged = review.validity_issue || review.curriculum_issue
   return (
     <div className="cand__decide" role="group" aria-label="내 판정">
       {(['USE', 'REVISE', 'HOLD', 'REJECT'] as Verdict[]).map((v) => (
-        <button key={v} type="button" className="btn btn--secondary btn--sm decide" data-verdict={v} onClick={() => onDecide(v)} disabled={busy !== null}>
+        <button
+          key={v}
+          type="button"
+          className="btn btn--secondary btn--sm decide"
+          data-verdict={v}
+          onClick={() => onDecide(v)}
+          disabled={busy !== null || (v === 'USE' && flagged)}
+          title={v === 'USE' && flagged ? '결함이나 교육과정 이탈이 표시된 후보는 사용 승인할 수 없습니다.' : undefined}
+        >
           {busy === `${candidate.id}:${v}` ? '기록 중…' : DECIDE_LABEL[v]}
         </button>
       ))}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Skeleton } from 'skullet/react'
-import { getResult } from '../api/mock'
+import { api } from '../api'
 import { sampleResult } from '../api/fixtures'
 import type { GenerationResult } from '../api/types'
 import { PlainView } from './result/Plain'
@@ -16,7 +16,7 @@ export function Result() {
     let alive = true
     setResult(undefined)
     if (!id) return
-    getResult(id).then((r) => {
+    api.getResult(id).then((r) => {
       if (alive) setResult(r)
     })
     return () => {

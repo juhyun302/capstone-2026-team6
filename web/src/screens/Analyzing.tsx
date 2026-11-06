@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Check, CircleAlert } from 'lucide-react'
 import { animate, svg, stagger, utils } from 'animejs'
-import { jobEvents } from '../api/mock'
+import { api } from '../api'
 import type { JobEvent, JobStage, QuestionError, SolutionIdea } from '../api/types'
 import { MathText } from '../components/Math'
-import { SAMPLE_SOURCE } from '../api/fixtures'
 
 const STAGES: { id: JobStage; title: string; detail: string }[] = [
   { id: 'read', title: '원문과 해설 읽기', detail: '이미지 속 문항과 수식을 읽고 텍스트와 대조합니다.' },
@@ -21,6 +20,7 @@ export function Analyzing() {
   const [stage, setStage] = useState<JobStage>('read')
   const [idea, setIdea] = useState<Partial<SolutionIdea>>({})
   const [error, setError] = useState<QuestionError | null>(null)
+  const [statement, setStatement] = useState('')
 
   useEffect(() => {
     if (!id) return
@@ -28,7 +28,7 @@ export function Analyzing() {
     let done = false
     ;(async () => {
       try {
-        for await (const ev of jobEvents(id, ctrl.signal)) {
+        for await (const ev of api.jobEvents(id, ctrl.signal)) {
           if (ctrl.signal.aborted) return
           apply(ev)
           if (ev.stage === 'done' && ev.result_id) {
@@ -37,11 +37,12 @@ export function Analyzing() {
           }
         }
       } catch (err) {
-        if ((err as Error).name !== 'AbortError') setError({ status: 'QUESTION_ERROR', error_code: 'UNREADABLE_INPUT', reason: '진행 상태를 받지 못했습니다. 다시 시도해 주세요.' })
+        if ((err as Error).name !== 'AbortError') setError({ status: 'SERVER_ERROR', error_code: 'STREAM_FAILED', reason: '진행 상태를 받지 못했습니다. 다시 시도해 주세요.' })
       }
     })()
     function apply(ev: JobEvent) {
       setStage(ev.stage)
+      if (ev.source_statement) setStatement(ev.source_statement)
       if (ev.solution_idea) setIdea((prev) => ({ ...prev, ...ev.solution_idea }))
       if (ev.error) setError(ev.error)
     }
@@ -76,7 +77,7 @@ export function Analyzing() {
             <span className="job__ring" aria-hidden="true" />
             <span className="job__sheen" aria-hidden="true" />
             <h2>원문</h2>
-            <MathText text={SAMPLE_SOURCE.statement} className="math--statement" />
+            <MathText text={statement} className="math--statement" />
             <ElementDiagram idea={idea} stage={stage} errored={!!error} />
           </aside>
 
@@ -85,7 +86,13 @@ export function Analyzing() {
               <div className="job__error" role="alert">
                 <h2>
                   <CircleAlert aria-hidden="true" style={{ display: 'inline', verticalAlign: '-3px', marginRight: 6, width: 18, height: 18 }} />
-                  {error.error_code === 'MISSING_ELEMENTS' || error.error_code === 'MISSING_MECHANISM' ? '문항 오류로 처리했습니다' : '확인이 필요합니다'}
+                  {error.status === 'SERVER_ERROR'
+                    ? '모델을 호출하지 못했습니다'
+                    : error.status === 'OUTPUT_ERROR'
+                      ? '모델 출력을 쓸 수 없습니다'
+                      : error.error_code === 'MISSING_ELEMENTS' || error.error_code === 'MISSING_MECHANISM'
+                        ? '문항 오류로 처리했습니다'
+                        : '확인이 필요합니다'}
                 </h2>
                 <p>{error.reason}</p>
                 {error.needs_confirmation && (
