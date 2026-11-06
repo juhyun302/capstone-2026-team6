@@ -1,0 +1,107 @@
+/* Hallmark · shape: Review sheet · genre: modern-minimal · theme: custom · job: try · idea: "원문과 후보가 한 장부에 나란히 놓이고, 모든 판정에 근거가 붙는다" · vibe: "시험지의 정갈함, 검토자의 빨간 펜, 신뢰"
+ * paper: oklch(99% 0.004 250) · accent: oklch(43% 0.145 253) · display: Noto Serif KR · body: Pretendard Variable · hero: 왼쪽 다섯 칸에 헤드와 한 문장, 오른쪽 일곱 칸에 실제 제품을 축소한 데모 · nav: edge-aligned, 워드마크와 한 동작 · footer: colophon · imagery: the product, built · signature: 두 풀이 요소 사이에 그려지는 연결선
+ * axes: light/roman-serif/chromatic-blue · posture: Stage · contrast: pass · fold: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R4 V4 · weakest: R, 결과 화면의 카드 수를 줄이고 검토 근거를 본문으로 올렸다 */
+/* Hallmark · waive 47b · one frame, the product's own result view built inside · the product does not run yet, so the hero shows it built */
+/* Hallmark · dismissed 23 · .job__ring is masked to a 1.5px edge, so the accent paints under 1% of the panel */
+/* Hallmark · answered F3 · the display head breaks at the sense break with <br> and takes text-wrap: balance */
+
+:root {
+  /* spacing: Hallmark scale */
+  --space-3xs: 2px; --space-2xs: 4px; --space-xs: 8px; --space-sm: 12px; --space-md: 16px; --space-lg: 24px; --space-xl: 40px; --space-2xl: 64px; --space-3xl: 96px; --space-4xl: 144px;
+
+  /* type scale: 1.25 from a 16px body */
+  --text-xs: 0.8125rem; --text-sm: 0.875rem; --text-md: 1rem; --text-lg: 1.25rem; --text-xl: 1.5625rem; --text-2xl: 1.953rem; --text-3xl: 2.441rem;
+  --text-display: clamp(2.5rem, 3.4vw + 1rem, 4.25rem);
+  --text-display-s: clamp(2rem, 2.4vw + 0.75rem, 3rem);
+  --text-section: clamp(1.75rem, 1.6vw + 0.9rem, 2.75rem);
+  --text-title: clamp(1.2rem, 0.5vw + 0.95rem, 1.5rem);
+  --text-lead: clamp(1.0625rem, 0.3vw + 0.95rem, 1.25rem);
+
+  /* motion: Emil Kowalski's curves, Hallmark's durations */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-micro: 120ms; --dur-short: 220ms; --dur-long: 420ms;
+
+  /* layout */
+  --container: 1200px; --gutter: 48px; --gap-columns: 32px;
+  --section-gap-s: 96px; --section-gap: 128px; --section-gap-l: 160px;
+  --z-base: 1; --z-raised: 10; --z-dropdown: 100; --z-sticky: 200; --z-sticky-nav: 300; --z-modal: 400; --z-toast: 500; --z-tooltip: 600;
+
+  /* colour: paper tinted toward the brand blue, one accent */
+  --color-paper: oklch(99% 0.004 250);
+  --color-paper-2: oklch(96.8% 0.006 250);
+  --color-paper-3: oklch(94.2% 0.009 250);
+  --color-ink: oklch(22% 0.022 262);
+  --color-ink-2: oklch(40% 0.022 262);
+  --color-muted: oklch(56% 0.02 262);
+  --color-rule: oklch(88.5% 0.01 252);
+  --color-rule-strong: oklch(78% 0.014 252);
+  --color-accent: oklch(43% 0.145 253);        /* #005BAC, the brand blue */
+  --color-accent-hover: oklch(38% 0.14 253);   /* #004887 */
+  --color-accent-ink: oklch(99% 0.004 250);
+  --color-accent-soft: oklch(95.5% 0.025 253);
+  --color-focus: oklch(55% 0.19 253);
+  --color-seal: oklch(74% 0.14 85);             /* #D6A319, the gold, used once: the wordmark's point */
+
+  /* verdicts and issues */
+  --color-use: oklch(46% 0.12 152);
+  --color-use-soft: oklch(95% 0.035 152);
+  --color-revise: oklch(56% 0.13 72);
+  --color-revise-soft: oklch(96% 0.04 80);
+  --color-hold: oklch(50% 0.02 262);
+  --color-hold-soft: oklch(95% 0.006 250);
+  --color-reject: oklch(50% 0.18 27);
+  --color-reject-soft: oklch(95.5% 0.03 27);
+  --color-error: oklch(50% 0.18 27);
+  --color-success: oklch(46% 0.12 152);
+
+  /* faces */
+  --font-display: "Noto Serif KR", "Apple SD Gothic Neo", Georgia, "Times New Roman", serif;
+  --font-body: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+  --font-outlier: "KaTeX_Main", "Times New Roman", serif;
+
+  --radius-xs: 4px; --radius-sm: 6px; --radius-card: 10px; --radius-lg: 14px; --radius-pill: 999px;
+  --rule-hair: 1px;
+  --shadow-card: 0 1px 2px oklch(20% 0.01 252 / 0.05);
+  --shadow-modal: 0 24px 64px oklch(10% 0.02 255 / 0.18);
+  --color-scrim: oklch(12% 0.02 255 / 0.4);
+  --tracking-display: -0.022em;
+  --nav-height: 60px;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --color-paper: oklch(15% 0.012 255);
+  --color-paper-2: oklch(19% 0.014 255);
+  --color-paper-3: oklch(23% 0.016 255);
+  --color-ink: oklch(94% 0.008 250);
+  --color-ink-2: oklch(80% 0.012 250);
+  --color-muted: oklch(66% 0.016 252);
+  --color-rule: oklch(30% 0.016 252);
+  --color-rule-strong: oklch(40% 0.02 252);
+  --color-accent: oklch(68% 0.15 253);
+  --color-accent-hover: oklch(74% 0.14 253);
+  --color-accent-ink: oklch(14% 0.02 255);
+  --color-accent-soft: oklch(26% 0.05 253);
+  --color-focus: oklch(72% 0.17 253);
+  --color-use: oklch(74% 0.13 152);
+  --color-use-soft: oklch(24% 0.04 152);
+  --color-revise: oklch(78% 0.13 78);
+  --color-revise-soft: oklch(26% 0.045 78);
+  --color-hold: oklch(72% 0.016 252);
+  --color-hold-soft: oklch(24% 0.01 252);
+  --color-reject: oklch(72% 0.16 27);
+  --color-reject-soft: oklch(25% 0.05 27);
+  --color-error: oklch(72% 0.16 27);
+  --color-success: oklch(74% 0.13 152);
+  --shadow-card: 0 1px 2px oklch(5% 0.01 252 / 0.4);
+  --shadow-modal: 0 24px 64px oklch(2% 0.01 255 / 0.6);
+  --color-scrim: oklch(5% 0.01 255 / 0.6);
+  color-scheme: dark;
+}
+
+@media (max-width: 60rem) { :root { --gutter: 24px; --section-gap-s: 72px; --section-gap: 88px; --section-gap-l: 112px; } }
+@media (max-width: 40rem) { :root { --gutter: 16px; --section-gap-s: 56px; --section-gap: 64px; --section-gap-l: 80px; --gap-columns: 16px; } }

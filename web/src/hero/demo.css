@@ -1,0 +1,154 @@
+/* All rules belong to the hero demo, including its compact variant. */
+.ad {
+  /* Pinned, bottom bleed: the window sits one gutter in from the top and
+     sides of a quiet well and runs past the stage's bottom. */
+  & .ss-stage {
+    --gutter: 32px;
+    overflow: hidden;
+    border-radius: 14px;
+    background: var(--ss-well);
+  }
+
+  .ad-window {
+    position: absolute;
+    top: var(--gutter);
+    left: 40px;
+    width: 560px;
+    height: 560px;
+    box-shadow: var(--ss-shadow-hero);
+  }
+  & [data-layout="compact"] .ad-window {
+    left: 16px;
+    width: 326px;
+    height: 520px;
+  }
+
+  .ad-body {
+    display: grid;
+    grid-template-columns: 276px minmax(0, 1fr);
+    height: 100%;
+    background: var(--ss-surface);
+  }
+  .ad-body[data-layout="compact"] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: max-content;
+  }
+
+  .ad-source,
+  .ad-cand {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px 16px 24px;
+    min-width: 0;
+  }
+  .ad-cand {
+    padding-left: 16px;
+    border-left: 1px solid var(--ss-line);
+  }
+  .ad-body[data-layout="compact"] .ad-cand {
+    border-left: 0;
+    border-top: 1px solid var(--ss-line);
+    padding-left: 24px;
+  }
+
+  .ad-colhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 24px;
+  }
+  .ad-h {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ss-text);
+  }
+
+  .ad-statement {
+    font-size: 13px;
+    line-height: 19px;
+    font-weight: 500;
+    color: var(--ss-text-strong);
+  }
+
+  .ad-expl {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 19px;
+    color: var(--ss-text);
+  }
+
+  /* An element lights as one highlight behind its own words */
+  .ad-el {
+    border-radius: 3px;
+    padding: 1px 2px;
+    margin: -1px -2px;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+    transition: background-color 0.35s cubic-bezier(0.25, 0.8, 0.25, 1), color 0.35s ease;
+  }
+  .ad-el[data-on] {
+    background: var(--ss-accent-soft);
+    color: var(--ss-text-strong);
+  }
+
+  .ad-mech {
+    font-size: 11px;
+    line-height: 15px;
+    font-weight: 500;
+    color: var(--ss-accent-text);
+    opacity: 0;
+    transform: translateY(3px);
+    transition: opacity 0.4s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+  }
+  .ad-mech[data-show] {
+    opacity: 1;
+    transform: none;
+  }
+
+  .ad-rest {
+    position: absolute;
+    left: 50%;
+    bottom: 18px;
+    width: 1px;
+    height: 1px;
+  }
+
+  .ad-collapse {
+    min-width: 0;
+  }
+  .ad-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 12px 12px;
+    border-radius: var(--ss-radius-md);
+    background: var(--ss-canvas);
+  }
+  .ad-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .ad-review {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 10px;
+    border-top: 1px solid var(--ss-line);
+  }
+  .ad-badge {
+    align-self: flex-start;
+  }
+  .ad-reason {
+    font-size: 11px;
+    line-height: 15px;
+    color: var(--ss-text);
+  }
+  .ad-approve {
+    align-self: flex-start;
+  }
+
+}
