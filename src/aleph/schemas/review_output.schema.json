@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ReviewOutput",
+  "description": "검토 모델이 쓰는 판정. reviewer_type과 approval_status는 코드가 붙이므로 여기에 넣지 않는다.",
+  "type": "object",
+  "properties": {
+    "validity_issue": {
+      "type": "boolean",
+      "description": "조건, 존재, 유일성, 경계값, 풀이에 수학적 결함이 있으면 true."
+    },
+    "curriculum_issue": {
+      "type": "boolean",
+      "description": "풀이에 curriculum_scope 밖의 개념이 필요하면 true."
+    },
+    "transferable": {
+      "type": "boolean",
+      "description": "후보가 두 요소의 메커니즘을 의미 있게 응용하면 true. SolutionIdea.transferable로 옮긴다."
+    },
+    "verdict": {
+      "enum": ["USE", "REVISE", "HOLD", "REJECT"],
+      "description": "AI의 잠정 판정."
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[^一-鿿]*$",
+      "description": "두 요소와 메커니즘이 후보 풀이의 어디에 쓰였는지와 판정 근거. 한자가 섞이면 거부한다."
+    }
+  },
+  "required": ["validity_issue", "curriculum_issue", "transferable", "verdict", "reason"],
+  "additionalProperties": false
+}

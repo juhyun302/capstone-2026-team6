@@ -1,0 +1,321 @@
+# 2026-11-06 윤결 승인. 케이스와 기대값의 변경에는 별도 승인이 필요하다.
+# 모델을 호출하지 않는다. 미리 적은 출력으로 판정 규칙과 단계 간 흐름만 검사하며 검토의 수학적 품질은 판정하지 않는다.
+version: 1
+review_status: HUMAN_APPROVED
+base_commit: b5b709ad6f31ed0e65053fe61db15c0a9b86e9ec
+function: aleph.review.review_candidate
+cases:
+- name: clean_candidate_gets_provisional_use
+  kind: normal
+  ac:
+  - AC3
+  - AC7
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  solver_outputs:
+  - '{"status":"solved","answer":"6","solution":"풀이","issues":[]}'
+  reviewer_outputs:
+  - '{"validity_issue":false,"curriculum_issue":false,"transferable":true,"verdict":"USE","reason":"요소 하나는 2단계에, 요소 둘은 3단계에 쓰이고 연결이 유지된다."}'
+  expect_status: OK
+  expect_error_code: null
+  expect_parser_calls: 1
+  expect_solver_calls: 1
+  expect_reviewer_calls: 1
+  expect_review:
+    validity_issue: false
+    curriculum_issue: false
+    verdict: USE
+    reason: 요소 하나는 2단계에, 요소 둘은 3단계에 쓰이고 연결이 유지된다.
+    reviewer_type: AI
+    approval_status: PROVISIONAL
+  expect_transferable: true
+  note: 모델이 USE라고 해도 검토 주체와 승인 상태는 코드가 AI와 PROVISIONAL로 붙인다.
+- name: validity_issue_is_reported_without_use
+  kind: normal
+  ac:
+  - AC4
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  solver_outputs:
+  - '{"status":"inconsistent","answer":"","solution":"조건을 만족하는 값이 없다.","issues":["해가 구간 밖에 있다"]}'
+  reviewer_outputs:
+  - '{"validity_issue":true,"curriculum_issue":false,"transferable":true,"verdict":"REVISE","reason":"조건을 만족하는 값이 구간 밖에 있어 답이 존재하지 않는다."}'
+  expect_status: OK
+  expect_error_code: null
+  expect_parser_calls: 1
+  expect_solver_calls: 1
+  expect_reviewer_calls: 1
+  expect_review:
+    validity_issue: true
+    curriculum_issue: false
+    verdict: REVISE
+    reason: 조건을 만족하는 값이 구간 밖에 있어 답이 존재하지 않는다.
+    reviewer_type: AI
+    approval_status: PROVISIONAL
+  expect_transferable: true
+  note: 결함을 찾으면 이유와 함께 USE가 아닌 판정을 돌려준다.
+- name: curriculum_issue_is_reported_without_use
+  kind: normal
+  ac:
+  - AC5
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  solver_outputs:
+  - '{"status":"solved","answer":"3","solution":"풀이","issues":[]}'
+  reviewer_outputs:
+  - '{"validity_issue":false,"curriculum_issue":true,"transferable":true,"verdict":"REJECT","reason":"풀이에 지정 범위 밖의 미분법이 필요하다."}'
+  expect_status: OK
+  expect_error_code: null
+  expect_parser_calls: 1
+  expect_solver_calls: 1
+  expect_reviewer_calls: 1
+  expect_review:
+    validity_issue: false
+    curriculum_issue: true
+    verdict: REJECT
+    reason: 풀이에 지정 범위 밖의 미분법이 필요하다.
+    reviewer_type: AI
+    approval_status: PROVISIONAL
+  expect_transferable: true
+  note: 교육과정 이탈은 수학적 결함과 별도로 표시한다.
+- name: copied_structure_is_not_transferable
+  kind: normal
+  ac:
+  - AC3
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  solver_outputs:
+  - '{"status":"solved","answer":"3","solution":"풀이","issues":[]}'
+  reviewer_outputs:
+  - '{"validity_issue":false,"curriculum_issue":false,"transferable":false,"verdict":"REVISE","reason":"풀이 절차가 원문과 같고 수치만 다르다."}'
+  expect_status: OK
+  expect_error_code: null
+  expect_parser_calls: 1
+  expect_solver_calls: 1
+  expect_reviewer_calls: 1
+  expect_review:
+    validity_issue: false
+    curriculum_issue: false
+    verdict: REVISE
+    reason: 풀이 절차가 원문과 같고 수치만 다르다.
+    reviewer_type: AI
+    approval_status: PROVISIONAL
+  expect_transferable: false
+  note: 수학적으로 맞아도 메커니즘을 응용하지 않았으면 transferable=false로 남긴다.
+- name: use_with_validity_issue_is_rejected
+  kind: forbidden
+  ac:
+  - AC4
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  solver_outputs:
+  - '{"status":"solved","answer":"3","solution":"풀이","issues":[]}'
+  reviewer_outputs:
+  - '{"validity_issue":true,"curriculum_issue":false,"transferable":true,"verdict":"USE","reason":"결함이 있지만 쓸 수 있다."}'
+  - '{"validity_issue":true,"curriculum_issue":false,"transferable":true,"verdict":"USE","reason":"결함이 있지만 쓸 수 있다."}'
+  expect_status: OUTPUT_ERROR
+  expect_error_code: VERDICT_CONFLICT
+  expect_parser_calls: 1
+  expect_solver_calls: 1
+  expect_reviewer_calls: 2
+  expect_review: null
+  expect_transferable: null
+  note: 결함을 표시하고 USE로 판정한 출력은 고치지 않고 거부한다.
+- name: use_with_curriculum_issue_is_rejected
+  kind: forbidden
+  ac:
+  - AC5
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  solver_outputs:
+  - '{"status":"solved","answer":"3","solution":"풀이","issues":[]}'
+  reviewer_outputs:
+  - '{"validity_issue":false,"curriculum_issue":true,"transferable":true,"verdict":"USE","reason":"범위 밖이지만 쓸 수 있다."}'
+  - '{"validity_issue":false,"curriculum_issue":true,"transferable":true,"verdict":"USE","reason":"범위 밖이지만 쓸 수 있다."}'
+  expect_status: OUTPUT_ERROR
+  expect_error_code: VERDICT_CONFLICT
+  expect_parser_calls: 1
+  expect_solver_calls: 1
+  expect_reviewer_calls: 2
+  expect_review: null
+  expect_transferable: null
+  note: 교육과정 이탈을 표시하고 USE로 판정한 출력을 거부한다.
+- name: use_without_transfer_is_rejected
+  kind: forbidden
+  ac:
+  - AC3
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  solver_outputs:
+  - '{"status":"solved","answer":"3","solution":"풀이","issues":[]}'
+  reviewer_outputs:
+  - '{"validity_issue":false,"curriculum_issue":false,"transferable":false,"verdict":"USE","reason":"수치만 바꿨지만 쓸 수 있다."}'
+  - '{"validity_issue":false,"curriculum_issue":false,"transferable":false,"verdict":"USE","reason":"수치만 바꿨지만 쓸 수 있다."}'
+  expect_status: OUTPUT_ERROR
+  expect_error_code: VERDICT_CONFLICT
+  expect_parser_calls: 1
+  expect_solver_calls: 1
+  expect_reviewer_calls: 2
+  expect_review: null
+  expect_transferable: null
+  note: 메커니즘을 응용하지 않은 후보는 USE가 될 수 없다.
+- name: use_after_unsolved_blind_solution_is_rejected
+  kind: forbidden
+  ac:
+  - AC4
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  solver_outputs:
+  - '{"status":"ambiguous","answer":"","solution":"답이 둘이다.","issues":["답이 하나로 정해지지 않는다"]}'
+  reviewer_outputs:
+  - '{"validity_issue":false,"curriculum_issue":false,"transferable":true,"verdict":"USE","reason":"문제없다."}'
+  - '{"validity_issue":false,"curriculum_issue":false,"transferable":true,"verdict":"USE","reason":"문제없다."}'
+  expect_status: OUTPUT_ERROR
+  expect_error_code: VERDICT_CONFLICT
+  expect_parser_calls: 1
+  expect_solver_calls: 1
+  expect_reviewer_calls: 2
+  expect_review: null
+  expect_transferable: null
+  note: 독립 풀이가 답을 확정하지 못한 후보를 USE로 판정할 수 없다.
+- name: use_after_solved_with_issues_is_rejected
+  kind: forbidden
+  ac:
+  - AC4
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  solver_outputs:
+  - '{"status":"solved","answer":"3","solution":"풀이","issues":["끝점 조건이 빠졌다"]}'
+  reviewer_outputs:
+  - '{"validity_issue":false,"curriculum_issue":false,"transferable":true,"verdict":"USE","reason":"문제없다."}'
+  - '{"validity_issue":false,"curriculum_issue":false,"transferable":true,"verdict":"USE","reason":"문제없다."}'
+  expect_status: OUTPUT_ERROR
+  expect_error_code: VERDICT_CONFLICT
+  expect_parser_calls: 1
+  expect_solver_calls: 1
+  expect_reviewer_calls: 2
+  expect_review: null
+  expect_transferable: null
+  note: 독립 풀이가 문제를 보고했는데 무시하고 USE로 판정할 수 없다.
+- name: conflict_is_retried_once
+  kind: boundary
+  ac:
+  - AC4
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  solver_outputs:
+  - '{"status":"solved","answer":"3","solution":"풀이","issues":[]}'
+  reviewer_outputs:
+  - '{"validity_issue":true,"curriculum_issue":false,"transferable":true,"verdict":"USE","reason":"쓸 수 있다."}'
+  - '{"validity_issue":true,"curriculum_issue":false,"transferable":true,"verdict":"REVISE","reason":"경계값 조건을 고쳐야 한다."}'
+  expect_status: OK
+  expect_error_code: null
+  expect_parser_calls: 1
+  expect_solver_calls: 1
+  expect_reviewer_calls: 2
+  expect_review:
+    validity_issue: true
+    curriculum_issue: false
+    verdict: REVISE
+    reason: 경계값 조건을 고쳐야 한다.
+    reviewer_type: AI
+    approval_status: PROVISIONAL
+  expect_transferable: true
+  note: 판정 충돌은 출력 오류이므로 한 번만 다시 요청한다.
+- name: reviewer_cannot_approve_itself
+  kind: forbidden
+  ac:
+  - AC7
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  solver_outputs:
+  - '{"status":"solved","answer":"3","solution":"풀이","issues":[]}'
+  reviewer_outputs:
+  - '{"validity_issue":false,"curriculum_issue":false,"transferable":true,"verdict":"USE","reason":"좋다.","approval_status":"APPROVED"}'
+  - '{"validity_issue":false,"curriculum_issue":false,"transferable":true,"verdict":"USE","reason":"좋다.","reviewer_type":"SELF"}'
+  expect_status: OUTPUT_ERROR
+  expect_error_code: SCHEMA_INVALID
+  expect_parser_calls: 1
+  expect_solver_calls: 1
+  expect_reviewer_calls: 2
+  expect_review: null
+  expect_transferable: null
+  note: 승인 상태와 검토 주체를 적은 출력은 거부한다.
+- name: blank_reason_is_rejected
+  kind: forbidden
+  ac:
+  - AC7
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  solver_outputs:
+  - '{"status":"solved","answer":"3","solution":"풀이","issues":[]}'
+  reviewer_outputs:
+  - '{"validity_issue":false,"curriculum_issue":false,"transferable":true,"verdict":"HOLD","reason":"   "}'
+  - '{"validity_issue":false,"curriculum_issue":false,"transferable":true,"verdict":"HOLD","reason":"   "}'
+  expect_status: OUTPUT_ERROR
+  expect_error_code: EMPTY_TEXT
+  expect_parser_calls: 1
+  expect_solver_calls: 1
+  expect_reviewer_calls: 2
+  expect_review: null
+  expect_transferable: null
+  note: 이유 없는 판정은 내놓지 않는다.
+- name: malformed_blind_solution_stops_before_review
+  kind: forbidden
+  ac:
+  - AC4
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  solver_outputs:
+  - 'not json'
+  - '{"status":"finished","answer":"3","solution":"풀이","issues":[]}'
+  reviewer_outputs: []
+  expect_status: OUTPUT_ERROR
+  expect_error_code: SCHEMA_INVALID
+  expect_parser_calls: 1
+  expect_solver_calls: 2
+  expect_reviewer_calls: 0
+  expect_review: null
+  expect_transferable: null
+  note: 독립 풀이 없이 검토를 진행하지 않는다.
+- name: missing_elements_stops_before_solving
+  kind: forbidden
+  ac:
+  - AC2
+  parser_outputs:
+  - '{"concept":"미분","key_elements":null,"mechanism":null}'
+  solver_outputs: []
+  reviewer_outputs: []
+  expect_status: QUESTION_ERROR
+  expect_error_code: MISSING_ELEMENTS
+  expect_parser_calls: 1
+  expect_solver_calls: 0
+  expect_reviewer_calls: 0
+  expect_review: null
+  expect_transferable: null
+  note: 비교 기준인 두 요소가 없으면 검토하지 않는다.
+- name: hanzi_in_reason_is_rejected
+  kind: forbidden
+  ac:
+  - AC7
+  parser_outputs:
+  - '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  solver_outputs:
+  - '{"status":"solved","answer":"3","solution":"풀이","issues":[]}'
+  reviewer_outputs:
+  - '{"validity_issue":false,"curriculum_issue":false,"transferable":true,"verdict":"HOLD","reason":"候选 풀이는 보류한다."}'
+  - '{"validity_issue":false,"curriculum_issue":false,"transferable":true,"verdict":"HOLD","reason":"후보 풀이는 보류한다."}'
+  expect_status: OK
+  expect_error_code: null
+  expect_parser_calls: 1
+  expect_solver_calls: 1
+  expect_reviewer_calls: 2
+  expect_review:
+    validity_issue: false
+    curriculum_issue: false
+    verdict: HOLD
+    reason: 후보 풀이는 보류한다.
+    reviewer_type: AI
+    approval_status: PROVISIONAL
+  expect_transferable: true
+  note: 2026-11-06 실행에서 reason에 候选이 섞여 나왔다. 사용자가 읽을 이유에 한자가 있으면 다시 요청한다.
