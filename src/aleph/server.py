@@ -1,4 +1,4 @@
-"""Serve generate_linked_question to the web client.
+"""Serve generate_linked_questions to the web client.
 
 Jobs and results live in this process only. There is no login, so bind it to localhost.
 """
@@ -14,10 +14,11 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 
 from aleph.generation import Complete, check_generation_request, load_prompt
-from aleph.review import generate_linked_question
+from aleph.pipeline import generate_linked_questions
 from aleph.validation import validate_solution_idea
 
 _VERDICTS = {"USE", "REVISE", "HOLD", "REJECT"}
+_STAGES = ["read", "extract", "generate", "review"]
 _POLL_SECONDS = 0.2
 _SERVER_FAILURE = "모델 호출에 실패했습니다. 잠시 뒤 다시 시도해 주세요."
 
@@ -26,36 +27,49 @@ _SERVER_FAILURE = "모델 호출에 실패했습니다. 잠시 뒤 다시 시도
 class _Job:
     request: dict
     events: list = field(default_factory=list)
+    stage: str = "read"
+    lock: threading.Lock = field(default_factory=threading.Lock)
     done: threading.Event = field(default_factory=threading.Event)
 
 
 def _stage_by_prompt() -> dict:
-    return {load_prompt("parse_query"): "extract", load_prompt("generate_candidate"): "generate",
-            load_prompt("solve_candidate"): "review", load_prompt("review_candidate"): "review"}
+    return {load_prompt("parse_query"): "extract", load_prompt("design_candidates"): "generate",
+            load_prompt("generate_candidate"): "generate", load_prompt("solve_candidate"): "review",
+            load_prompt("review_candidate"): "review"}
 
 
 def _reporting(complete: Complete, job: _Job) -> Complete:
-    """Turn each model call into the progress events the web screen shows."""
+    """Turn model calls into progress events; candidates run in parallel, so stages only move forward."""
     stages = _stage_by_prompt()
 
     def reported(system: str, user: str) -> str:
         stage = stages[system]
-        if job.events[-1]["stage"] != stage:
-            job.events.append({"stage": stage})
+        with job.lock:
+            if _STAGES.index(stage) > _STAGES.index(job.stage):
+                job.stage = stage
+                job.events.append({"stage": stage})
         output = complete(system, user)
         if stage == "extract":
             checked = validate_solution_idea(output)
             if checked["status"] == "OK":
-                job.events.append({"stage": stage, "solution_idea": checked["solution_idea"]})
+                with job.lock:
+                    job.events.append({"stage": stage, "solution_idea": checked["solution_idea"]})
         return output
 
     return reported
 
 
+def _shown(candidate: dict) -> dict:
+    plan = candidate["plan"]
+    return {"id": candidate["id"], **candidate["candidate_question"],
+            "plan": {"changed_axes": plan["changed_axes"], "added_judgment": plan["added_judgment"]},
+            "surface_check": candidate["surface_check"], "transferable": candidate["transferable"],
+            "review_result": candidate["review_result"], "ai_review_result": candidate["review_result"]}
+
+
 def _result_record(job: _Job, output: dict) -> dict:
     request = job.request
     source = request["source_question"]
-    review = output["review_result"]
     return {
         "id": f"res_{uuid.uuid4().hex[:12]}",
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -68,37 +82,39 @@ def _result_record(job: _Job, output: dict) -> dict:
                        "solution": source["explanation"]["text"]},
         },
         "solution_idea": output["solution_idea"],
-        "candidates": [{"id": "c1", **output["candidate_question"], "review_result": review,
-                        "ai_review_result": review}],
+        "candidates": [_shown(c) for c in output["candidates"] if c["review_result"]],
     }
 
 
-def _run(job: _Job, complete: Complete, results: dict) -> None:
+def _run(job: _Job, complete: Complete, results: dict, count: int, workers: int) -> None:
     try:
-        output = generate_linked_question(job.request, _reporting(complete, job))
+        output = generate_linked_questions(job.request, _reporting(complete, job), count=count,
+                                           workers=workers)
     except Exception:
-        job.events.append({"stage": "error", "error": {
-            "status": "SERVER_ERROR", "error_code": "MODEL_CALL_FAILED",
-            "reason": _SERVER_FAILURE}})
+        event = {"stage": "error", "error": {
+            "status": "SERVER_ERROR", "error_code": "MODEL_CALL_FAILED", "reason": _SERVER_FAILURE}}
     else:
         if output["status"] == "OK":
             record = _result_record(job, output)
             results[record["id"]] = record
-            job.events.append({"stage": "done", "result_id": record["id"],
-                               "solution_idea": output["solution_idea"]})
+            event = {"stage": "done", "result_id": record["id"],
+                     "solution_idea": output["solution_idea"]}
         else:
-            job.events.append({"stage": "error", "error": {
+            event = {"stage": "error", "error": {
                 "status": output["status"], "error_code": output["error_code"],
-                "reason": output["reason"]}})
-    finally:
-        job.done.set()
+                "reason": output["reason"]}}
+    with job.lock:
+        job.events.append(event)
+    job.done.set()
 
 
 def _stream(job: _Job):
     sent = 0
     while True:
         finished = job.done.is_set()
-        for event in job.events[sent:]:
+        with job.lock:
+            pending = job.events[sent:]
+        for event in pending:
             sent += 1
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
         if finished and sent == len(job.events):
@@ -115,7 +131,7 @@ def _candidate_of(results: dict, result_id: str, candidate_id: str) -> dict:
     return candidate
 
 
-def create_app(complete: Complete) -> FastAPI:
+def create_app(complete: Complete, *, count: int = 3, workers: int = 3) -> FastAPI:
     app = FastAPI(title="Aleph")
     jobs: dict = {}
     results: dict = {}
@@ -131,7 +147,8 @@ def create_app(complete: Complete) -> FastAPI:
         job_id = f"job_{uuid.uuid4().hex[:12]}"
         job = _Job(request, [{"stage": "read", "source_statement": source["problem"]}])
         jobs[job_id] = job
-        threading.Thread(target=_run, args=(job, complete, results), daemon=True).start()
+        threading.Thread(target=_run, args=(job, complete, results, count, workers),
+                         daemon=True).start()
         return {"jobId": job_id}
 
     @app.get("/api/jobs/{job_id}/events")

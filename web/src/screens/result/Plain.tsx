@@ -9,6 +9,14 @@ import { approvalSentence, checksSentence, DecideRow, ResultHead, sealNote, Sour
 
 // The plain view: candidates in two columns, solution and reasons folded.
 
+const AXIS_LABEL: Record<string, string> = {
+  object: '대상',
+  condition_form: '조건 구조',
+  target: '묻는 것',
+  representation: '제시 방식',
+  solution_route: '풀이 구성',
+}
+
 export function PlainView({ result }: { result: GenerationResult }) {
   const reduce = useReducedMotion()
   const { candidates, decide, busy } = useDecisions(result)
@@ -67,11 +75,18 @@ function Candidate({ index, candidate, busy, onDecide }: { index: number; candid
         <Fold id={`rev-${candidate.id}`} open={openReview}>
           <div className="cand__review">
             <p className="cand__checks">{checksSentence(review)}</p>
+            {candidate.surface_check?.copy_suspected && <p className="cand__checks">원문이나 다른 후보와 문장이 거의 같습니다.</p>}
             <MathText text={review.reason} className="cand__reason" />
             {review.reviewer_type !== 'AI' && candidate.ai_review_result && (
               <>
                 <h3>AI 잠정 판정: {VERDICT_LABEL[candidate.ai_review_result.verdict]}</h3>
                 <MathText text={candidate.ai_review_result.reason} className="cand__reason" />
+              </>
+            )}
+            {candidate.plan && (
+              <>
+                <h3>설계에서 바꾼 점: {candidate.plan.changed_axes.map((axis) => AXIS_LABEL[axis] ?? axis).join(', ')}</h3>
+                <MathText text={candidate.plan.added_judgment} className="cand__reason" />
               </>
             )}
             {candidate.element_trace && (

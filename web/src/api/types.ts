@@ -57,6 +57,10 @@ export interface CandidateQuestion {
   review_result: ReviewResult
   /** The AI's verdict, kept after a human decides. */
   ai_review_result?: ReviewResult
+  /** What the design stage changed from the source and the judgment it added. */
+  plan?: { changed_axes: string[]; added_judgment: string }
+  /** String similarity to the source and to earlier candidates. */
+  surface_check?: { source_similarity: number; max_sibling_similarity: number; copy_suspected: boolean }
 }
 
 export interface SourceSummary {

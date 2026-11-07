@@ -2,7 +2,7 @@
 
 | 항목 | 값 |
 |---|---|
-| `prompt_version` | 3 |
+| `prompt_version` | 4 |
 | 짝이 되는 스키마 | `src/aleph/schemas/candidate_question.schema.json` |
 | 입력 | `source_question`(원문과 해설 텍스트), 검증을 통과한 `solution_idea`, `intended_use`, `target_level`, `curriculum_scope`를 담은 JSON |
 | 전송 범위 | `src/aleph/generation.py`가 아래 전송부의 시작·끝 마커 사이만 시스템 프롬프트로 읽는다. |
@@ -33,6 +33,10 @@
 사용 조건:
 - 풀이는 curriculum_scope 안의 개념과 공식만 쓴다.
 - intended_use와 target_level을 문항 구성과 난도에 반영한다.
+
+설계:
+- 입력에 plan이 있으면 그 설계를 따른다. plan의 대상, 조건 구조, 묻는 것, 제시 방식, 풀이 순서와 added_judgment가 문항과 풀이에 실제로 드러나야 한다.
+- sibling_plans는 같은 원문으로 만드는 다른 후보의 설계다. 그 후보들과 겹치는 문항을 만들지 않는다.
 
 수학적 성립:
 - 수치를 정한 뒤 직접 풀어 조건을 만족하는 대상이 존재하는지와 묻는 값이 하나로 정해지는지 확인한다. 함수 자체가 여러 개 가능해도 묻는 값이 유일한지 구별한다.
@@ -85,3 +89,4 @@ solution:
 - v1 (초안): 두 요소와 메커니즘을 함께 응용하는 후보 하나를 만드는 전송부를 작성했다.
 - v2 (초안): 2026-11-06 시험 실행에서 정답이 $\frac{5\pi}{8}$처럼 수능 단답형이 아닌 후보가 나와 정답 형식 규칙을 추가했다.
 - v3 (초안): 2026-11-06 사람 판단에 따라 핵심 단계를 원문과 다르게 만드는 규칙을 추가했다.
+- v4 (초안): 2026-11-07 설계 단계(`design_candidates.md`)를 추가하면서 plan과 sibling_plans를 따르는 규칙을 넣었다.

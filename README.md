@@ -10,6 +10,7 @@
 - [팀원](#팀원)
 - [프로젝트 개요](#프로젝트-개요)
 - [기술 스택](#기술-스택)
+- [로컬 실행](#로컬-실행)
 - [협업 규칙](#협업-규칙)
 
 ## 팀 소개
@@ -39,6 +40,50 @@
 ## 기술 스택
 
 > 미정 — 강의 6 아키텍처 설계 단계에서 확정합니다.
+
+## 로컬 실행
+
+원문과 해설을 넣으면 후보 문항 3개와 AI 잠정 검토를 받는 화면을 내 컴퓨터에서 띄웁니다. 서버에 로그인이 없으므로 공개된 곳에 띄우지 않습니다.
+
+준비물: Python 3.12, Node.js 20.19 이상, OpenAI API 키
+
+1. 브랜치를 받습니다.
+
+   ```bash
+   git fetch origin
+   git switch feat/w07-candidate-design
+   ```
+
+2. Python 패키지를 설치합니다.
+
+   ```bash
+   python -m venv .venv
+   .venv\Scripts\activate        # macOS·Linux: source .venv/bin/activate
+   pip install -r requirements.txt -r requirements-dev.txt
+   ```
+
+3. `.env.example`을 `.env`로 복사하고 `OPENAI_API_KEY=` 뒤에 키를 넣습니다. `.env`는 Git에 올라가지 않습니다.
+
+4. 터미널 하나에서 서버를 띄웁니다.
+
+   ```bash
+   python scripts/run_server.py
+   ```
+
+5. 다른 터미널에서 화면을 띄웁니다.
+
+   ```bash
+   cd web
+   npm install
+   npm run dev
+   ```
+
+6. 브라우저에서 http://localhost:5173 을 엽니다.
+
+- 원문과 해설은 수식·텍스트로 넣습니다. 이미지 입력은 아직 지원하지 않습니다.
+- 요청 한 번에 3~5분이 걸리고 모델을 11번 호출합니다. 호출 비용은 `.env`의 키로 청구됩니다.
+- 결과는 서버를 끄면 사라집니다.
+- 검사: `python -m ruff check .`, `python -m pytest -q -rs`
 
 ## 협업 규칙
 

@@ -1,0 +1,160 @@
+# 2026-11-07 AI 초안. 사람 승인 전에는 완료 근거로 쓰지 않는다.
+# 모델을 호출하지 않는다. 미리 적은 출력으로 설계, 생성, 유사도 검사, 검토의 흐름만 판정한다.
+version: 1
+review_status: DRAFT_REQUIRES_HUMAN_REVIEW
+base_commit: b788f0c9e8f69e847ba5733ef60d30ab1f548910
+function: aleph.pipeline.generate_linked_questions
+fixtures:
+  idea: &idea '{"concept":"수열","key_elements":["요소 하나","요소 둘"],"mechanism":"연결"}'
+  design3: &design3 '{"plans":[{"id":"p1","object":"대상1","condition_form":"조건1","target":"질문1","representation":"제시1","solution_route":"풀이1","changed_axes":["object","condition_form","target"],"added_judgment":"판단1"},{"id":"p2","object":"대상2","condition_form":"조건2","target":"질문2","representation":"제시2","solution_route":"풀이2","changed_axes":["object","target","representation"],"added_judgment":"판단2"},{"id":"p3","object":"대상3","condition_form":"조건3","target":"질문3","representation":"제시3","solution_route":"풀이3","changed_axes":["condition_form","target","solution_route"],"added_judgment":"판단3"}]}'
+  design2: &design2 '{"plans":[{"id":"p1","object":"대상1","condition_form":"조건1","target":"질문1","representation":"제시1","solution_route":"풀이1","changed_axes":["object","condition_form","target"],"added_judgment":"판단1"},{"id":"p2","object":"대상2","condition_form":"조건2","target":"질문2","representation":"제시2","solution_route":"풀이2","changed_axes":["object","target","representation"],"added_judgment":"판단2"}]}'
+  narrow: &narrow '{"plans":[{"id":"p1","object":"대상1","condition_form":"조건1","target":"질문1","representation":"제시1","solution_route":"풀이1","changed_axes":["object","target"],"added_judgment":"판단1"},{"id":"p2","object":"대상2","condition_form":"조건2","target":"질문2","representation":"제시2","solution_route":"풀이2","changed_axes":["object","target","representation"],"added_judgment":"판단2"},{"id":"p3","object":"대상3","condition_form":"조건3","target":"질문3","representation":"제시3","solution_route":"풀이3","changed_axes":["condition_form","target","solution_route"],"added_judgment":"판단3"}]}'
+  c1: &c1 '{"statement":"등차수열의 공차를 구하는 첫 번째 새 문항이다.","solution":"풀이 하나"}'
+  c2: &c2 '{"statement":"원 위의 두 점 사이 거리를 묻는 두 번째 문항","solution":"풀이 둘"}'
+  c3: &c3 '{"statement":"로그방정식의 실근 개수로 상수를 정하는 문항","solution":"풀이 셋"}'
+  reskin: &reskin '{"statement":"함수 $f(x)=x^2+5$에 대하여 $f(7)$의 값을 구하시오.","solution":"풀이"}'
+  blind: &blind '{"status":"solved","answer":"3","solution":"독립 풀이","issues":[]}'
+  use: &use '{"validity_issue":false,"curriculum_issue":false,"transferable":true,"verdict":"USE","reason":"두 요소가 연결대로 쓰인다."}'
+  revise: &revise '{"validity_issue":true,"curriculum_issue":false,"transferable":true,"verdict":"REVISE","reason":"경계값을 고쳐야 한다."}'
+  copied: &copied '{"validity_issue":false,"curriculum_issue":false,"transferable":false,"verdict":"REVISE","reason":"원문과 문장이 거의 같다."}'
+cases:
+- name: three_plans_make_three_reviewed_candidates
+  kind: normal
+  ac: [AC1, AC3, AC7]
+  outputs:
+    parse_query: [*idea]
+    design_candidates: [*design3]
+    generate_candidate: [*c1, *c2, *c3]
+    solve_candidate: [*blind, *blind, *blind]
+    review_candidate: [*use, *revise, *use]
+  expect_status: OK
+  expect_error_code: null
+  expect_shown: {p1: USE, p2: REVISE, p3: USE}
+  expect_copy: []
+  note: 설계안마다 후보를 하나씩 만들고, 후보마다 독립 풀이와 검토를 거친다.
+- name: missing_elements_stops_before_design
+  kind: forbidden
+  ac: [AC2]
+  outputs:
+    parse_query: ['{"concept":"미분","key_elements":null,"mechanism":null}']
+    design_candidates: []
+    generate_candidate: []
+    solve_candidate: []
+    review_candidate: []
+  expect_status: QUESTION_ERROR
+  expect_error_code: MISSING_ELEMENTS
+  expect_shown: {}
+  expect_copy: []
+  note: 두 요소를 확인하지 못하면 설계도 하지 않는다.
+- name: malformed_design_is_retried_once
+  kind: boundary
+  ac: [AC1]
+  outputs:
+    parse_query: [*idea]
+    design_candidates: ['설계안입니다', *design3]
+    generate_candidate: [*c1, *c2, *c3]
+    solve_candidate: [*blind, *blind, *blind]
+    review_candidate: [*use, *use, *use]
+  expect_status: OK
+  expect_error_code: null
+  expect_shown: {p1: USE, p2: USE, p3: USE}
+  expect_copy: []
+  note: 설계의 형식 오류는 한 번만 다시 요청한다.
+- name: wrong_plan_count_twice_stops
+  kind: forbidden
+  ac: [AC1]
+  outputs:
+    parse_query: [*idea]
+    design_candidates: [*design2, *design2]
+    generate_candidate: []
+    solve_candidate: []
+    review_candidate: []
+  expect_status: OUTPUT_ERROR
+  expect_error_code: DESIGN_INVALID
+  expect_shown: {}
+  expect_copy: []
+  note: 요청한 수만큼 설계하지 못하면 후보를 만들지 않는다.
+- name: plan_with_two_axes_is_rejected
+  kind: forbidden
+  ac: [AC3]
+  outputs:
+    parse_query: [*idea]
+    design_candidates: [*narrow, *narrow]
+    generate_candidate: []
+    solve_candidate: []
+    review_candidate: []
+  expect_status: OUTPUT_ERROR
+  expect_error_code: SCHEMA_INVALID
+  expect_shown: {}
+  expect_copy: []
+  note: 원문과 달라진 축이 셋 미만인 설계는 받지 않는다.
+- name: failed_draft_is_dropped_others_stay
+  kind: boundary
+  ac: [AC7]
+  outputs:
+    parse_query: [*idea]
+    design_candidates: [*design3]
+    generate_candidate: [*c1, 'not json', 'still not json', *c3]
+    solve_candidate: [*blind, *blind]
+    review_candidate: [*use, *revise]
+  expect_status: OK
+  expect_error_code: null
+  expect_shown: {p1: USE, p3: REVISE}
+  expect_copy: []
+  note: 만들지 못한 후보는 검토 없이 빠지고 나머지는 그대로 보인다.
+- name: all_drafts_fail
+  kind: forbidden
+  ac: [AC7]
+  outputs:
+    parse_query: [*idea]
+    design_candidates: [*design3]
+    generate_candidate: ['x', 'x', 'x', 'x', 'x', 'x']
+    solve_candidate: []
+    review_candidate: []
+  expect_status: OUTPUT_ERROR
+  expect_error_code: JSON_INVALID
+  expect_shown: {}
+  expect_copy: []
+  note: 검토까지 마친 후보가 하나도 없으면 결과를 내지 않는다.
+- name: reskin_of_source_is_flagged
+  kind: forbidden
+  ac: [AC3]
+  outputs:
+    parse_query: [*idea]
+    design_candidates: [*design3]
+    generate_candidate: [*reskin, *c2, *c3]
+    solve_candidate: [*blind, *blind, *blind]
+    review_candidate: [*copied, *use, *use]
+  expect_status: OK
+  expect_error_code: null
+  expect_shown: {p1: REVISE, p2: USE, p3: USE}
+  expect_copy: [p1]
+  note: 원문에서 숫자만 바꾼 후보는 유사도 검사에 걸리고 검토자에게 그 사실이 전달된다.
+- name: flagged_copy_cannot_be_use
+  kind: forbidden
+  ac: [AC3]
+  outputs:
+    parse_query: [*idea]
+    design_candidates: [*design3]
+    generate_candidate: [*reskin, *c2, *c3]
+    solve_candidate: [*blind, *blind, *blind]
+    review_candidate: [*use, *use, *use, *use]
+  expect_status: OK
+  expect_error_code: null
+  expect_shown: {p2: USE, p3: USE}
+  expect_copy: [p1]
+  note: 유사도 검사에 걸린 후보를 USE로 판정하면 거부하고, 두 번 거부되면 후보를 보여 주지 않는다.
+- name: duplicate_sibling_is_flagged
+  kind: forbidden
+  ac: [AC3]
+  outputs:
+    parse_query: [*idea]
+    design_candidates: [*design3]
+    generate_candidate: [*c1, *c1, *c3]
+    solve_candidate: [*blind, *blind, *blind]
+    review_candidate: [*use, *copied, *use]
+  expect_status: OK
+  expect_error_code: null
+  expect_shown: {p1: USE, p2: REVISE, p3: USE}
+  expect_copy: [p2]
+  note: 앞선 후보와 문장이 거의 같은 후보는 뒤의 것만 표시한다.
