@@ -3,3 +3,5 @@ dist
 .hallmark/before
 *.tsbuildinfo
 dist-*
+.wrangler
+.dev.vars*

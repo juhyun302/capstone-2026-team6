@@ -24,7 +24,45 @@ _DESIGN_SCHEMA = json.loads(
 )
 Draft7Validator.check_schema(_DESIGN_SCHEMA)
 _DESIGN_VALIDATOR = Draft7Validator(_DESIGN_SCHEMA)
+_PLAN_KEYS = list(_DESIGN_SCHEMA["properties"]["plans"]["items"]["properties"])
 MAX_CANDIDATES = 5
+
+
+def _schema_problem(design) -> str:
+    """Name the first rule a design broke, so a retry and a person can fix that rule."""
+    error = min(_DESIGN_VALIDATOR.iter_errors(design),
+                key=lambda e: ([str(part) for part in e.absolute_path], e.validator))
+    path = list(error.absolute_path)
+    if path == ["plans"] and error.validator in ("minItems", "maxItems"):
+        return "설계안 수가 1개에서 5개 사이가 아닙니다"
+    if len(path) < 2:
+        return "최상위는 plans 하나만 가진 객체여야 합니다"
+    index = path[1]
+    plan = design["plans"][index]
+    plan_id = plan.get("id") if isinstance(plan, dict) else None
+    name = plan_id if isinstance(plan_id, str) and plan_id.strip() else f"{index + 1}번째 설계안"
+    if len(path) == 2:
+        if error.validator == "required":
+            missing = [key for key in error.validator_value if key not in error.instance]
+            return f"{name}에 {missing[0]} 항목이 없습니다"
+        if error.validator == "additionalProperties":
+            extra = sorted(key for key in error.instance if key not in _PLAN_KEYS)
+            return f"{name}에 정해지지 않은 항목이 있습니다: {extra[0]}"
+        return f"{name}이 객체가 아닙니다"
+    key = path[2]
+    if key == "changed_axes":
+        if error.validator == "minItems":
+            return f"{name}의 changed_axes가 3개보다 적습니다"
+        return f"{name}의 changed_axes에 허용되지 않거나 겹치는 값이 있습니다"
+    if key == "id":
+        return f"{name}의 id가 p1~p9 형식이 아닙니다"
+    if error.validator == "pattern":
+        return f"{name}의 {key}에 한자가 들어 있습니다"
+    if error.validator == "anyOf":
+        return f"{name}의 {key}가 문장 또는 문장 배열이 아니거나 한자가 들어 있습니다"
+    if error.validator == "minLength":
+        return f"{name}의 {key}가 비어 있습니다"
+    return f"{name}의 {key} 형식이 맞지 않습니다"
 
 
 def validate_candidate_design(raw_output: str, *, count: int) -> dict:
@@ -36,8 +74,7 @@ def validate_candidate_design(raw_output: str, *, count: int) -> dict:
     except ValueError:
         return _error("JSON_INVALID", "중복 키와 비표준 값이 없는 JSON 객체 하나가 필요합니다.", "design")
     if not _DESIGN_VALIDATOR.is_valid(design):
-        return _error("SCHEMA_INVALID", "설계안이 스키마의 키, 타입, 변화 축 수 또는 언어 제약을 위반했습니다.",
-                      "design")
+        return _error("SCHEMA_INVALID", f"설계안이 규칙을 어겼습니다: {_schema_problem(design)}.", "design")
     plans = design["plans"]
     texts = [text for plan in plans for value in plan.values()
              for text in (value if isinstance(value, list) else [value]) if isinstance(text, str)]
@@ -46,6 +83,18 @@ def validate_candidate_design(raw_output: str, *, count: int) -> dict:
     if len(plans) != count or len({plan["id"] for plan in plans}) != len(plans):
         return _error("DESIGN_INVALID", "설계안의 수나 ID가 요청과 다릅니다.", "design")
     return {"status": "OK", "error_code": None, "reason": None, "design": design}
+
+
+def _design(complete: Complete, design_input: dict, count: int) -> dict:
+    """Retry a malformed design once, telling the designer which rule the first one broke."""
+    system = load_prompt("design_candidates")
+    designed = validate_candidate_design(
+        complete(system, json.dumps(design_input, ensure_ascii=False)), count=count)
+    if designed["status"] == "OUTPUT_ERROR":
+        retry = {**design_input, "previous_error": designed["reason"]}
+        designed = validate_candidate_design(
+            complete(system, json.dumps(retry, ensure_ascii=False)), count=count)
+    return designed
 
 
 def _draft(complete: Complete, source: dict, idea: dict, conditions: dict, plans: list,
@@ -86,10 +135,8 @@ def generate_linked_questions(request: dict, complete: Complete, *, count: int =
         return {**extraction, "candidates": []}
     idea = extraction["solution_idea"]
 
-    design_user = json.dumps({"source_question": source, "solution_idea": idea, "count": count,
-                              **conditions}, ensure_ascii=False)
-    designed = _first_valid(complete, load_prompt("design_candidates"), design_user,
-                            partial(validate_candidate_design, count=count))
+    design_input = {"source_question": source, "solution_idea": idea, "count": count, **conditions}
+    designed = _design(complete, design_input, count)
     if designed["status"] != "OK":
         return {"status": designed["status"], "error_code": designed["error_code"],
                 "reason": designed["reason"], "solution_idea": idea, "candidates": []}

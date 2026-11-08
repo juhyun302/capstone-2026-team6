@@ -85,10 +85,27 @@ export function checkGenerationRequest(request: GenerationRequest) {
   return { source: sourceText(request.source_question ?? {}), conditions }
 }
 
+/** Keep a rejected model output in the console, so a person can see why a run stopped. */
+function checked<T>(validate: (raw: string) => Checked<T>, raw: string) {
+  const result = validate(raw)
+  if (result.status === 'OUTPUT_ERROR' && typeof console !== 'undefined') console.warn('[Aleph] 모델 출력 거부:', result.error_code, result.reason, raw)
+  return result
+}
+
 /** Retry a malformed output once; a missing-information result is final. */
 async function firstValid<T>(complete: Complete, system: string, user: string, validate: (raw: string) => Checked<T>) {
-  let result = validate(await complete(system, user))
-  if (result.status === 'OUTPUT_ERROR') result = validate(await complete(system, user))
+  let result = checked(validate, await complete(system, user))
+  if (result.status === 'OUTPUT_ERROR') result = checked(validate, await complete(system, user))
+  return result
+}
+
+/** Retry a malformed design once, telling the designer which rule the first one broke. */
+async function design(complete: Complete, input: Record<string, unknown>, count: number) {
+  const validate = (raw: string) => validateCandidateDesign(raw, count)
+  let result = checked(validate, await complete(PROMPTS.design_candidates, JSON.stringify(input)))
+  if (result.status === 'OUTPUT_ERROR') {
+    result = checked(validate, await complete(PROMPTS.design_candidates, JSON.stringify({ ...input, previous_error: result.reason })))
+  }
   return result
 }
 
@@ -151,8 +168,7 @@ export async function generateLinkedQuestions(request: GenerationRequest, comple
   }
   const idea = extraction.value
 
-  const designUser = JSON.stringify({ source_question: source, solution_idea: idea, count, ...conditions })
-  const designed = await firstValid(complete, PROMPTS.design_candidates, designUser, (raw) => validateCandidateDesign(raw, count))
+  const designed = await design(complete, { source_question: source, solution_idea: idea, count, ...conditions }, count)
   if (designed.status !== 'OK' || !designed.value) {
     return { status: designed.status, error_code: designed.error_code, reason: designed.reason, solution_idea: idea, candidates: [] }
   }

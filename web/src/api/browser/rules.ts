@@ -14,16 +14,11 @@ import blindSchema from '../../../../src/aleph/schemas/blind_solution.schema.jso
 import reviewSchema from '../../../../src/aleph/schemas/review_output.schema.json?raw'
 import designSchema from '../../../../src/aleph/schemas/candidate_design.schema.json?raw'
 
-const START = '<!-- prompt:start -->'
-const END = '<!-- prompt:end -->'
+import { promptOf, type PromptName } from '../promptText'
 
-export function promptOf(markdown: string, name: string): string {
-  const text = markdown.replace(/\r\n/g, '\n')
-  if (text.split(START).length !== 2 || text.split(END).length !== 2) throw new Error(`${name}: prompt markers must appear exactly once`)
-  return text.split(START)[1].split(END)[0].trim()
-}
+export { promptOf }
 
-export const PROMPTS = {
+export const PROMPTS: Record<PromptName, string> = {
   parse_query: promptOf(parseQueryMd, 'parse_query'),
   design_candidates: promptOf(designMd, 'design_candidates'),
   generate_candidate: promptOf(generateMd, 'generate_candidate'),
@@ -38,6 +33,11 @@ const CANDIDATE = compile(candidateSchema)
 const BLIND = compile(blindSchema)
 const REVIEW = compile(reviewSchema)
 const DESIGN = compile(designSchema)
+// every error, so the first one can be picked the same way as src/aleph/pipeline.py
+const DESIGN_SCHEMA = JSON.parse(designSchema)
+const DESIGN_ALL = new Ajv({ strict: false, allErrors: true }).compile(DESIGN_SCHEMA)
+const PLAN_KEYS = Object.keys(DESIGN_SCHEMA.properties.plans.items.properties)
+const PLAN_REQUIRED: string[] = DESIGN_SCHEMA.properties.plans.items.required
 
 export type Status = 'OK' | 'QUESTION_ERROR' | 'OUTPUT_ERROR'
 export interface Checked<T> {
@@ -175,11 +175,45 @@ export interface Plan {
   added_judgment: string
 }
 
+type DesignError = { path: string[]; keyword: string }
+
+const comparePaths = (a: string[], b: string[]) => {
+  for (let i = 0; i < Math.min(a.length, b.length); i += 1) if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1
+  return a.length - b.length
+}
+
+/** Name the first rule a design broke; same order and words as _schema_problem in src/aleph/pipeline.py. */
+function schemaProblem(design: unknown): string {
+  DESIGN_ALL(design)
+  const errors: DesignError[] = (DESIGN_ALL.errors ?? []).map((e) => ({ path: e.instancePath.split('/').slice(1), keyword: e.keyword }))
+  errors.sort((a, b) => comparePaths(a.path, b.path) || (a.keyword < b.keyword ? -1 : a.keyword > b.keyword ? 1 : 0))
+  const { path, keyword } = errors[0]
+  if (path.length === 1 && path[0] === 'plans' && (keyword === 'minItems' || keyword === 'maxItems')) return '설계안 수가 1개에서 5개 사이가 아닙니다'
+  if (path.length < 2) return '최상위는 plans 하나만 가진 객체여야 합니다'
+  const index = Number(path[1])
+  const plan = (design as { plans: unknown[] }).plans[index]
+  const record = plan && typeof plan === 'object' && !Array.isArray(plan) ? (plan as Record<string, unknown>) : null
+  const id = record?.id
+  const name = typeof id === 'string' && id.trim() ? id : `${index + 1}번째 설계안`
+  if (path.length === 2) {
+    if (keyword === 'required' && record) return `${name}에 ${PLAN_REQUIRED.find((key) => !(key in record))} 항목이 없습니다`
+    if (keyword === 'additionalProperties' && record) return `${name}에 정해지지 않은 항목이 있습니다: ${Object.keys(record).filter((key) => !PLAN_KEYS.includes(key)).sort()[0]}`
+    return `${name}이 객체가 아닙니다`
+  }
+  const key = path[2]
+  if (key === 'changed_axes') return keyword === 'minItems' ? `${name}의 changed_axes가 3개보다 적습니다` : `${name}의 changed_axes에 허용되지 않거나 겹치는 값이 있습니다`
+  if (key === 'id') return `${name}의 id가 p1~p9 형식이 아닙니다`
+  if (keyword === 'pattern') return `${name}의 ${key}에 한자가 들어 있습니다`
+  if (keyword === 'anyOf') return `${name}의 ${key}가 문장 또는 문장 배열이 아니거나 한자가 들어 있습니다`
+  if (keyword === 'minLength') return `${name}의 ${key}가 비어 있습니다`
+  return `${name}의 ${key} 형식이 맞지 않습니다`
+}
+
 export function validateCandidateDesign(raw: unknown, count: number): Checked<{ plans: Plan[] }> {
   if (!Number.isInteger(count)) throw new TypeError('count must be an integer')
   const { value, error } = parsed(raw)
   if (error) return fail('JSON_INVALID', JSON_REASON)
-  if (!DESIGN(value)) return fail('SCHEMA_INVALID', '설계안이 스키마의 키, 타입, 변화 축 수 또는 언어 제약을 위반했습니다.')
+  if (!DESIGN(value)) return fail('SCHEMA_INVALID', `설계안이 규칙을 어겼습니다: ${schemaProblem(value)}.`)
   const design = value as { plans: Plan[] }
   const texts = design.plans.flatMap((plan) => Object.values(plan).flatMap((v) => (Array.isArray(v) ? v : [v])))
   if (texts.some(blank)) return fail('EMPTY_TEXT', '공백만 있는 문자열을 설계로 사용할 수 없습니다.')

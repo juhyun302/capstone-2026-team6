@@ -1,14 +1,14 @@
-// The same four functions as ../client.ts, but the pipeline runs in this browser and calls
-// OpenAI with the viewer's own key. Used by the single-file build (VITE_API=browser).
+// The same four functions as ../client.ts, but the pipeline runs in this browser. Model calls go
+// to OpenAI with the viewer's key, or through the team worker with a password (see ../settings.ts).
 
-import { getSettings } from '../settings'
+import { accessMode, getSettings } from '../settings'
 import type { CallKind, GenerationRequest, GenerationResult, JobEvent, JobStage, QuestionError, ReviewResult, SourcePart, Verdict } from '../types'
-import { ModelCallError, openaiComplete } from './openai'
+import { ModelCallError, checkPassword, modelComplete } from './openai'
 import { PROMPTS } from './rules'
 import { checkGenerationRequest, generateLinkedQuestions, type CandidateOutcome, type Complete, type LinkedQuestions } from './pipeline'
 
 const RESULTS_KEY = 'aleph.browser.results.v1'
-const STAGES: JobStage[] = ['read', 'extract', 'generate', 'review']
+const STAGES: JobStage[] = ['read', 'extract', 'validate', 'generate', 'review']
 const VERDICTS: Verdict[] = ['USE', 'REVISE', 'HOLD', 'REJECT']
 const CANDIDATES = 3
 
@@ -55,6 +55,11 @@ const CALL_BY_PROMPT: Record<string, { stage: JobStage; kind: CallKind }> = {
 function reporting(complete: Complete, job: Job): Complete {
   return async (system, user) => {
     const { stage, kind } = CALL_BY_PROMPT[system]
+    // the design call starts only after the extracted idea passed the code checks
+    if (stage === 'generate' && STAGES.indexOf(job.stage) < STAGES.indexOf('validate')) {
+      job.stage = 'validate'
+      push(job, { stage: 'validate' })
+    }
     if (STAGES.indexOf(stage) > STAGES.indexOf(job.stage)) {
       job.stage = stage
       push(job, { stage })
@@ -114,8 +119,9 @@ export async function createJob(req: GenerationRequest): Promise<{ jobId: string
     throw new Error(String(error).includes('image') ? '이미지 입력은 아직 지원하지 않습니다. 수식·텍스트로 넣어 주세요.' : '원문, 해설, 교육과정 범위를 모두 넣어 주세요.')
   }
   const settings = getSettings()
-  if (!settings.apiKey.trim()) throw new Error('OpenAI API 키를 먼저 넣어 주세요.')
-  const complete = openaiComplete({ apiKey: settings.apiKey, model: settings.model })
+  // a wrong password should stop here, with the form still filled in
+  if (accessMode === 'password') await checkPassword(settings.secret)
+  const complete = modelComplete(accessMode, settings)
 
   const jobId = id('job')
   const job: Job = {

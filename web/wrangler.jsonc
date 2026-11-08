@@ -1,0 +1,19 @@
+// Web build on Cloudflare Workers: the page (dist-web) plus /api/* in worker/index.ts.
+// Deploy: npm run deploy. Secrets, set once and never committed:
+//   npx wrangler secret put OPENAI_API_KEY
+//   npx wrangler secret put ACCESS_PASSWORD
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "aleph",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-01",
+  // one public address (https://aleph.<account>.workers.dev); no per-version preview addresses
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": { "directory": "./dist-web" },
+  "rules": [{ "type": "Text", "globs": ["**/*.md"], "fallthrough": true }],
+  // model calls per day (Korean time) for everyone; one request is about 11 calls
+  "vars": { "OPENAI_MODEL": "gpt-6-astra", "DAILY_CALL_LIMIT": "450" },
+  "durable_objects": { "bindings": [{ "name": "USAGE", "class_name": "Usage" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Usage"] }]
+}

@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from 'motion/react'
 import { ArrowRight, Check, Circle, CircleAlert, ImageUp, Sigma, X } from 'lucide-react'
 import { MathText } from '../components/Math'
 import { api, apiMode } from '../api'
-import { DEFAULT_MODEL, getSettings, setSettings, type OpenAISettings } from '../api/settings'
+import { DEFAULT_MODEL, accessMode, getSettings, setSettings, type AccessSettings } from '../api/settings'
 import { SAMPLE_SOURCE } from '../api/fixtures'
 import { CURRICULUM_OPTIONS, DEFAULT_INTENDED_USE, DEFAULT_TARGET_LEVEL } from '../api/config'
 import type { GenerationRequest } from '../api/types'
@@ -20,6 +20,24 @@ interface PartState {
 const MAX_BYTES = 20 * 1024 * 1024
 const ACCEPT = ['image/png', 'image/jpeg', 'image/heic', 'image/heif', 'image/webp']
 
+const WORDS = accessMode === 'password'
+  ? {
+      title: '접속 비밀번호',
+      placeholder: '팀에서 받은 비밀번호',
+      check: '접속 비밀번호가 있습니다',
+      remember: '이 브라우저에 비밀번호 기억하기',
+      missing: '접속 비밀번호를 넣어 주세요. 비밀번호가 있어야 팀 서버로 모델을 부를 수 있습니다.',
+      note: 'OpenAI 키는 팀 서버에만 있고 이 화면으로 오지 않습니다. 기억하기를 끄면 탭을 닫거나 새로 고칠 때 지워집니다. 요청 한 번에 모델을 11번쯤 부르고, 비용은 팀 계정에 청구됩니다.',
+    }
+  : {
+      title: 'OpenAI API 키',
+      placeholder: 'sk-…',
+      check: 'OpenAI API 키가 있습니다',
+      remember: '이 브라우저에 키 기억하기',
+      missing: 'OpenAI API 키를 넣어 주세요. 키가 있어야 이 브라우저에서 모델을 부를 수 있습니다.',
+      note: '키는 이 브라우저에서 OpenAI로만 보냅니다. 기억하기를 끄면 탭을 닫거나 새로 고칠 때 지워집니다. 요청 한 번에 모델을 11번쯤 부르고, 비용은 키 주인 계정에 청구됩니다.',
+    }
+
 const empty = (): PartState => ({ mode: 'text', text: '', file: null, preview: null })
 const hasContent = (p: PartState) => (p.mode === 'text' ? p.text.trim().length > 0 : !!p.file)
 
@@ -31,14 +49,14 @@ export function NewRequest() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [touched, setTouched] = useState(false)
-  const [openai, setOpenai] = useState<OpenAISettings>(getSettings)
+  const [access, setAccess] = useState<AccessSettings>(getSettings)
   const problemRef = useRef<HTMLDivElement>(null)
   const keyRef = useRef<HTMLInputElement>(null)
 
   const needsKey = apiMode === 'browser'
   const problemOk = hasContent(problem)
   const explanationOk = hasContent(explanation)
-  const keyOk = !needsKey || openai.apiKey.trim().length > 0
+  const keyOk = !needsKey || access.secret.trim().length > 0
   const ready = problemOk && explanationOk && keyOk
 
   useEffect(() => {
@@ -56,7 +74,7 @@ export function NewRequest() {
     setTouched(true)
     if (!ready) {
       if (!keyOk && problemOk && explanationOk) {
-        setError('OpenAI API 키를 넣어 주세요. 키가 있어야 이 브라우저에서 모델을 부를 수 있습니다.')
+        setError(WORDS.missing)
         keyRef.current?.focus()
         return
       }
@@ -66,7 +84,7 @@ export function NewRequest() {
     }
     setError(null)
     setSubmitting(true)
-    if (needsKey) setSettings({ ...openai, apiKey: openai.apiKey.trim(), model: openai.model.trim() || DEFAULT_MODEL })
+    if (needsKey) setSettings({ ...access, secret: access.secret.trim(), model: access.model.trim() || DEFAULT_MODEL })
     const req: GenerationRequest = {
       source_question: {
         problem: { text: problem.mode === 'text' ? problem.text : undefined, image: problem.mode === 'image' ? problem.file : null },
@@ -82,6 +100,7 @@ export function NewRequest() {
     } catch (err) {
       setSubmitting(false)
       setError(err instanceof Error ? err.message : '요청을 보내지 못했습니다. 다시 시도해 주세요.')
+      if (err instanceof Error && /비밀번호|API 키/.test(err.message)) keyRef.current?.focus()
     }
   }
 
@@ -136,42 +155,42 @@ export function NewRequest() {
             <ul className="checklist" aria-label="제출 전 확인">
               <CheckItem ok={problemOk}>원문 문항이 있습니다</CheckItem>
               <CheckItem ok={explanationOk}>원문 해설이 있습니다</CheckItem>
-              {needsKey && <CheckItem ok={keyOk}>OpenAI API 키가 있습니다</CheckItem>}
+              {needsKey && <CheckItem ok={keyOk}>{WORDS.check}</CheckItem>}
             </ul>
 
             {needsKey && (
               <fieldset className="keybox">
-                <legend className="field__label">OpenAI API 키</legend>
+                <legend className="field__label">{WORDS.title}</legend>
                 <input
                   ref={keyRef}
                   type="password"
-                  name="openai_api_key"
+                  name={accessMode === 'key' ? 'openai_api_key' : 'access_password'}
                   className="input"
-                  placeholder="sk-…"
-                  autoComplete="off"
+                  placeholder={WORDS.placeholder}
+                  autoComplete={accessMode === 'key' ? 'off' : 'current-password'}
                   spellCheck={false}
-                  aria-label="OpenAI API 키"
+                  aria-label={WORDS.title}
                   aria-invalid={touched && !keyOk}
-                  value={openai.apiKey}
-                  onChange={(e) => setOpenai({ ...openai, apiKey: e.target.value })}
+                  value={access.secret}
+                  onChange={(e) => setAccess({ ...access, secret: e.target.value })}
                 />
-                <label className="field">
-                  <span className="field__hint">모델</span>
-                  <input
-                    name="openai_model"
-                    className="input"
-                    spellCheck={false}
-                    value={openai.model}
-                    onChange={(e) => setOpenai({ ...openai, model: e.target.value })}
-                  />
-                </label>
+                {accessMode === 'key' && (
+                  <label className="field">
+                    <span className="field__hint">모델</span>
+                    <input
+                      name="openai_model"
+                      className="input"
+                      spellCheck={false}
+                      value={access.model}
+                      onChange={(e) => setAccess({ ...access, model: e.target.value })}
+                    />
+                  </label>
+                )}
                 <label className="keybox__remember">
-                  <input type="checkbox" checked={openai.remember} onChange={(e) => setOpenai({ ...openai, remember: e.target.checked })} />
-                  이 브라우저에 키 기억하기
+                  <input type="checkbox" checked={access.remember} onChange={(e) => setAccess({ ...access, remember: e.target.checked })} />
+                  {WORDS.remember}
                 </label>
-                <span className="field__hint">
-                  키는 이 브라우저에서 OpenAI로만 보냅니다. 기억하기를 끄면 탭을 닫거나 새로 고칠 때 지워집니다. 요청 한 번에 모델을 11번쯤 부르고, 비용은 키 주인 계정에 청구됩니다.
-                </span>
+                <span className="field__hint">{WORDS.note}</span>
               </fieldset>
             )}
 

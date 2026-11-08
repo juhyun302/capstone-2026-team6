@@ -277,3 +277,32 @@ def test_solution_route_may_be_a_list_of_steps():
     assert validate_candidate_design(json.dumps(plans, ensure_ascii=False), count=3)["error_code"] == "EMPTY_TEXT"
     plans["plans"][0]["solution_route"] = []
     assert validate_candidate_design(json.dumps(plans, ensure_ascii=False), count=3)["error_code"] == "SCHEMA_INVALID"
+
+
+def test_schema_error_names_the_plan_and_the_rule():
+    narrow = validate_candidate_design(FIX["narrow"], count=3)
+    assert narrow["error_code"] == "SCHEMA_INVALID"
+    assert all(part in narrow["reason"] for part in ("p1", "changed_axes", "3"))
+
+    design = json.loads(FIX["design3"])
+    design["plans"][1]["target"] = "最大값을 구한다"
+    hanzi = validate_candidate_design(json.dumps(design, ensure_ascii=False), count=3)
+    assert hanzi["error_code"] == "SCHEMA_INVALID"
+    assert all(part in hanzi["reason"] for part in ("p2", "target", "한자"))
+
+    design = json.loads(FIX["design3"])
+    del design["plans"][2]["added_judgment"]
+    missing = validate_candidate_design(json.dumps(design, ensure_ascii=False), count=3)
+    assert missing["error_code"] == "SCHEMA_INVALID"
+    assert all(part in missing["reason"] for part in ("p3", "added_judgment"))
+
+
+def test_design_retry_tells_the_designer_why_the_first_was_rejected():
+    outputs = deepcopy(HAPPY)
+    outputs["design_candidates"] = [FIX["narrow"], FIX["design3"]]
+    model, result = run(outputs)
+    first, second = model.sent("design_candidates")
+    assert "previous_error" not in first
+    assert all(part in second["previous_error"] for part in ("p1", "changed_axes"))
+    assert {key: value for key, value in second.items() if key != "previous_error"} == first
+    assert result["status"] == "OK"
