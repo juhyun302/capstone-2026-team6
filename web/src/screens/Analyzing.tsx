@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Check, CircleAlert } from 'lucide-react'
 import { animate, svg, stagger, utils } from 'animejs'
-import { api } from '../api'
+import { api, apiMode } from '../api'
 import type { JobEvent, JobStage, QuestionError, SolutionIdea } from '../api/types'
 import { MathText } from '../components/Math'
+import { estimate, type Mark } from './progress'
 
 const STAGES: { id: JobStage; title: string; detail: string }[] = [
   { id: 'read', title: '원문과 해설 읽기', detail: '이미지 속 문항과 수식을 읽고 텍스트와 대조합니다.' },
@@ -21,11 +22,14 @@ export function Analyzing() {
   const [idea, setIdea] = useState<Partial<SolutionIdea>>({})
   const [error, setError] = useState<QuestionError | null>(null)
   const [statement, setStatement] = useState('')
+  const [marks, setMarks] = useState<Mark[]>([])
 
   useEffect(() => {
     if (!id) return
     const ctrl = new AbortController()
     let done = false
+    // the stream replays from the first event, so a remount starts the timeline over
+    setMarks([])
     ;(async () => {
       try {
         for await (const ev of api.jobEvents(id, ctrl.signal)) {
@@ -41,6 +45,7 @@ export function Analyzing() {
       }
     })()
     function apply(ev: JobEvent) {
+      setMarks((prev) => [...prev, { at: ev.at ?? Date.now(), event: ev }])
       setStage(ev.stage)
       if (ev.source_statement) setStatement(ev.source_statement)
       if (ev.solution_idea) setIdea((prev) => ({ ...prev, ...ev.solution_idea }))
@@ -51,8 +56,16 @@ export function Analyzing() {
     }
   }, [id, navigate])
 
+  // In the browser build the job lives in this tab; leaving it mid-run throws the work away.
+  useEffect(() => {
+    if (apiMode !== 'browser' || error || stage === 'done') return
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault()
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [stage, error])
+
   const idx = ORDER.indexOf(stage)
-  const stateOf = (s: JobStage): 'done' | 'active' | 'pending' | 'error' => {
+  const stateOf =(s: JobStage): 'done' | 'active' | 'pending' | 'error' => {
     const i = ORDER.indexOf(s)
     if (error) return i < errorIndex(error) ? 'done' : i === errorIndex(error) ? 'error' : 'pending'
     if (i < idx) return 'done'
@@ -65,7 +78,7 @@ export function Analyzing() {
       <div className="container" style={{ paddingBlock: 'var(--space-xl) var(--section-gap)' }}>
         <div className="page-head">
           <div>
-            <h1>{error ? '후보를 만들지 않았습니다.' : stage === 'done' ? '검토 결과를 엽니다.' : '풀이 요소를 찾는 중입니다.'}</h1>
+            <h1>{error ? '후보를 만들지 않았습니다.' : HEADING[stage]}</h1>
             <p className="lead" style={{ marginTop: 'var(--space-sm)' }} aria-live="polite">
               {error ? error.reason : stage === 'done' ? '잠정 검토까지 끝났습니다.' : '두 요소와 연결이 확인되면 후보를 만들고 잠정 검토까지 이어서 합니다.'}
             </p>
@@ -111,9 +124,11 @@ export function Analyzing() {
                   </Link>
                 </div>
               </div>
-            ) : null}
+            ) : (
+              <JobProgress marks={marks} running={stage !== 'done'} />
+            )}
 
-            <ol className="steps" aria-label="진행 단계" style={{ marginTop: error ? 'var(--space-xl)' : 0 }}>
+            <ol className="steps" aria-label="진행 단계" style={{ marginTop: 'var(--space-xl)' }}>
               {STAGES.map((s) => {
                 const state = stateOf(s.id)
                 return (
@@ -135,6 +150,60 @@ export function Analyzing() {
             </ol>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+const HEADING: Record<JobStage, string> = {
+  read: '풀이 요소를 찾는 중입니다.',
+  extract: '풀이 요소를 찾는 중입니다.',
+  generate: '후보 문항을 만드는 중입니다.',
+  review: '후보를 검토하는 중입니다.',
+  done: '검토 결과를 엽니다.',
+  error: '후보를 만들지 않았습니다.',
+}
+
+const duration = (s: number) => (s < 60 ? `${s}초` : `${Math.floor(s / 60)}분 ${String(s % 60).padStart(2, '0')}초`)
+
+function remainingText(seconds: number | null) {
+  if (seconds === null) return '거의 끝났습니다'
+  if (seconds < 60) return '1분 안쪽 남음'
+  return `약 ${Math.round(seconds / 60)}분 남음`
+}
+
+/** A bar from finished model calls and expected step times; it never moves back. */
+function JobProgress({ marks, running }: { marks: Mark[]; running: boolean }) {
+  const [now, setNow] = useState(() => Date.now())
+  const shown = useRef(0)
+  useEffect(() => {
+    if (!running) return
+    const timer = window.setInterval(() => setNow(Date.now()), 500)
+    return () => window.clearInterval(timer)
+  }, [running])
+  const progress = estimate(marks, running ? now : Date.now())
+  shown.current = Math.max(shown.current, progress.fraction)
+  const percent = Math.floor(shown.current * 100)
+  return (
+    <div className="jobbar">
+      <div className="jobbar__head">
+        <span className="jobbar__label">{progress.label}</span>
+        <span className="jobbar__pct">{percent}%</span>
+      </div>
+      <div
+        className="jobbar__track"
+        role="progressbar"
+        aria-label="진행률"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+        aria-valuetext={`${percent}%, ${progress.label}`}
+      >
+        <div className="jobbar__fill" style={{ transform: `scaleX(${shown.current})` }} />
+      </div>
+      <div className="jobbar__meta">
+        <span>{duration(progress.elapsedSeconds)} 지남</span>
+        <span>{running ? remainingText(progress.remainingSeconds) : '완료'}</span>
       </div>
     </div>
   )

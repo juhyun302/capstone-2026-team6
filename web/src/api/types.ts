@@ -89,12 +89,21 @@ export interface QuestionError {
 /** Pipeline stages the job streams while it runs. */
 export type JobStage = 'read' | 'extract' | 'generate' | 'review' | 'done' | 'error'
 
+/** The five kinds of model call one request makes. */
+export type CallKind = 'extract' | 'design' | 'generate' | 'solve' | 'review'
+
 export interface JobEvent {
   stage: JobStage
+  /** When the event happened (ms since epoch); the client stamps arrival time when absent. */
+  at?: number
   /** The problem text the user sent, shown while the job runs. */
   source_statement?: string
+  /** How many candidates this job makes; sent with the first event. */
+  candidates?: number
   /** Filled once the parser has an idea; partial while it streams. */
   solution_idea?: Partial<SolutionIdea>
+  /** One model call starting or ending. Only the browser build sends these; progress falls back to stages without them. */
+  call?: { kind: CallKind; phase: 'start' | 'end' }
   result_id?: string
   error?: QuestionError
 }
