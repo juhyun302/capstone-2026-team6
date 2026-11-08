@@ -67,7 +67,7 @@ def client():
 def test_events_follow_the_pipeline_stages(client):
     events = run_job(client)
     assert [event["stage"] for event in events] == [
-        "read", "extract", "extract", "generate", "review", "done"]
+        "read", "extract", "extract", "validate", "generate", "review", "done"]
     assert events[0]["source_statement"] == "원문 문항"
     assert events[2]["solution_idea"] == IDEA
 
@@ -76,7 +76,7 @@ def test_three_candidates_arrive_with_their_plans():
     client = TestClient(create_app(model(count=3), count=3))
     events = run_job(client)
     stages = [event["stage"] for event in events]
-    assert stages == ["read", "extract", "extract", "generate", "review", "done"]
+    assert stages == ["read", "extract", "extract", "validate", "generate", "review", "done"]
     result = client.get(f"/api/results/{events[-1]['result_id']}").json()
     assert [c["id"] for c in result["candidates"]] == ["p1", "p2", "p3"]
     assert len({c["statement"] for c in result["candidates"]}) == 3

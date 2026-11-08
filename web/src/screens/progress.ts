@@ -11,7 +11,7 @@ const TOTAL = KINDS.reduce((sum, kind) => sum + EXPECTED[kind], 0)
 
 /** Without call events (server mode) each stage covers the steps inside it. */
 const STAGE_KINDS: Partial<Record<JobStage, CallKind[]>> = { extract: ['extract'], generate: ['design', 'generate'], review: ['solve', 'review'] }
-const STAGE_ORDER: JobStage[] = ['read', 'extract', 'generate', 'review']
+const STAGE_ORDER: JobStage[] = ['read', 'extract', 'validate', 'generate', 'review']
 
 export interface Mark {
   at: number
@@ -88,7 +88,7 @@ function byStages(marks: Mark[], now: number) {
     worth += weight * share
     left += weight * (1 - share)
   }
-  const label = current === 'read' ? '준비 중' : current === 'extract' ? LABEL.extract : current === 'generate' ? '후보 설계·작성 중' : '후보 풀이·검토 중'
+  const label = current === 'read' ? '준비 중' : current === 'extract' ? LABEL.extract : current === 'validate' ? '구조 검증 중' : current === 'generate' ? '후보 설계·작성 중' : '후보 풀이·검토 중'
   return { worth, left, label }
 }
 

@@ -140,10 +140,12 @@ export async function* jobEvents(jobId: string, signal?: AbortSignal): AsyncGene
   await sleep(600, signal)
   yield { stage: 'extract', solution_idea: idea }
   await sleep(500, signal)
+  yield { stage: 'validate', solution_idea: idea }
+  await sleep(700, signal)
   yield { stage: 'generate', solution_idea: idea }
-  await sleep(1400, signal)
+  await sleep(2600, signal)
   yield { stage: 'review', solution_idea: idea }
-  await sleep(1100, signal)
+  await sleep(1800, signal)
 
   const resultId = id('res')
   const result = sampleResult(resultId, {

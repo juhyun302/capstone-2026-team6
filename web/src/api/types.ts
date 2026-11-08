@@ -87,7 +87,7 @@ export interface QuestionError {
 }
 
 /** Pipeline stages the job streams while it runs. */
-export type JobStage = 'read' | 'extract' | 'generate' | 'review' | 'done' | 'error'
+export type JobStage = 'read' | 'extract' | 'validate' | 'generate' | 'review' | 'done' | 'error'
 
 /** The five kinds of model call one request makes. */
 export type CallKind = 'extract' | 'design' | 'generate' | 'solve' | 'review'

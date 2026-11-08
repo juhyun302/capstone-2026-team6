@@ -18,7 +18,7 @@ from aleph.pipeline import generate_linked_questions
 from aleph.validation import validate_solution_idea
 
 _VERDICTS = {"USE", "REVISE", "HOLD", "REJECT"}
-_STAGES = ["read", "extract", "generate", "review"]
+_STAGES = ["read", "extract", "validate", "generate", "review"]
 _POLL_SECONDS = 0.2
 _SERVER_FAILURE = "모델 호출에 실패했습니다. 잠시 뒤 다시 시도해 주세요."
 
@@ -45,6 +45,10 @@ def _reporting(complete: Complete, job: _Job) -> Complete:
     def reported(system: str, user: str) -> str:
         stage = stages[system]
         with job.lock:
+            # the design call starts only after the extracted idea passed the code checks
+            if stage == "generate" and _STAGES.index(job.stage) < _STAGES.index("validate"):
+                job.stage = "validate"
+                job.events.append({"stage": "validate"})
             if _STAGES.index(stage) > _STAGES.index(job.stage):
                 job.stage = stage
                 job.events.append({"stage": stage})
