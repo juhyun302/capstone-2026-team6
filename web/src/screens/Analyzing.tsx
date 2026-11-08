@@ -1,19 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { Check, CircleAlert } from 'lucide-react'
-import { animate, svg, stagger, utils } from 'animejs'
+import { CircleAlert } from 'lucide-react'
 import { jobEvents } from '../api/mock'
 import type { JobEvent, JobStage, QuestionError, SolutionIdea } from '../api/types'
 import { MathText } from '../components/Math'
+import { NodeGraph, JOB_NODES, failedNodeIndex } from '../components/NodeGraph'
 import { SAMPLE_SOURCE } from '../api/fixtures'
 
-const STAGES: { id: JobStage; title: string; detail: string }[] = [
-  { id: 'read', title: '원문과 해설 읽기', detail: '이미지 속 문항과 수식을 읽고 텍스트와 대조합니다.' },
-  { id: 'extract', title: '풀이 요소 추출', detail: '핵심 개념, 서로 다른 핵심 풀이 요소 두 개, 두 요소의 연결을 찾습니다.' },
-  { id: 'generate', title: '후보 문항 생성', detail: '정해진 교육과정 범위 안에서 두 요소의 메커니즘을 응용합니다.' },
-  { id: 'review', title: '잠정 검토', detail: '조건 누락, 경계값, 정의역, 교육과정 이탈을 검토합니다.' },
-]
-const ORDER: JobStage[] = ['read', 'extract', 'generate', 'review', 'done']
+// The waiting screen. A node graph shows where the job is and who is working
+// (AI, code, a person); ink light travels the wires as real stage events
+// arrive. Below it, the source and what has been found so far, plus the
+// measured time each stage took. Nothing here guesses how long is left.
+
+const NOW_SENTENCE: Record<JobStage, string> = {
+  read: '이미지 속 문항과 수식을 읽고 텍스트와 대조하고 있습니다.',
+  extract: '해설에서 핵심 개념, 서로 다른 핵심 풀이 요소 두 개, 두 요소의 연결을 찾고 있습니다.',
+  validate: '파서 출력이 SolutionIdea 스키마와 필수 값 규칙을 지키는지 확인하고 있습니다.',
+  generate: '정해진 교육과정 범위 안에서 두 요소의 메커니즘을 응용한 후보 문항과 풀이를 만들고 있습니다.',
+  review: '조건 누락, 경계값, 정의역, 교육과정 이탈을 검토하고 근거를 적고 있습니다.',
+  done: '잠정 검토까지 끝났습니다. 검토 결과를 엽니다.',
+  error: '',
+}
 
 export function Analyzing() {
   const { id } = useParams()
@@ -21,6 +28,15 @@ export function Analyzing() {
   const [stage, setStage] = useState<JobStage>('read')
   const [idea, setIdea] = useState<Partial<SolutionIdea>>({})
   const [error, setError] = useState<QuestionError | null>(null)
+  const [elapsed, setElapsed] = useState(0)
+  const [durations, setDurations] = useState<Partial<Record<string, number>>>({})
+  const startedAt = useRef(performance.now())
+  const stageStarted = useRef<{ stage: JobStage; at: number }>({ stage: 'read', at: performance.now() })
+
+  useEffect(() => {
+    const t = setInterval(() => setElapsed(performance.now() - startedAt.current), 500)
+    return () => clearInterval(t)
+  }, [])
 
   useEffect(() => {
     if (!id) return
@@ -33,7 +49,7 @@ export function Analyzing() {
           apply(ev)
           if (ev.stage === 'done' && ev.result_id) {
             done = true
-            setTimeout(() => navigate(`/results/${ev.result_id}`, { replace: true }), 700)
+            setTimeout(() => navigate(`/results/${ev.result_id}`, { replace: true }), 1400)
           }
         }
       } catch (err) {
@@ -41,7 +57,15 @@ export function Analyzing() {
       }
     })()
     function apply(ev: JobEvent) {
-      setStage(ev.stage)
+      setStage((prev) => {
+        if (ev.stage !== prev) {
+          const now = performance.now()
+          const { stage: s, at } = stageStarted.current
+          setDurations((d) => ({ ...d, [s]: now - at }))
+          stageStarted.current = { stage: ev.stage, at: now }
+        }
+        return ev.stage
+      })
       if (ev.solution_idea) setIdea((prev) => ({ ...prev, ...ev.solution_idea }))
       if (ev.error) setError(ev.error)
     }
@@ -50,14 +74,10 @@ export function Analyzing() {
     }
   }, [id, navigate])
 
-  const idx = ORDER.indexOf(stage)
-  const stateOf = (s: JobStage): 'done' | 'active' | 'pending' | 'error' => {
-    const i = ORDER.indexOf(s)
-    if (error) return i < errorIndex(error) ? 'done' : i === errorIndex(error) ? 'error' : 'pending'
-    if (i < idx) return 'done'
-    if (i === idx) return 'active'
-    return 'pending'
-  }
+  const busy = !error && (stage === 'generate' || stage === 'review')
+  const mm = Math.floor(elapsed / 60000)
+  const ss = Math.floor((elapsed % 60000) / 1000)
+  const failedAt = error ? JOB_NODES[failedNodeIndex(error)].name : null
 
   return (
     <div className="screen">
@@ -66,21 +86,28 @@ export function Analyzing() {
           <div>
             <h1>{error ? '후보를 만들지 않았습니다.' : stage === 'done' ? '검토 결과를 엽니다.' : '풀이 요소를 찾는 중입니다.'}</h1>
             <p className="lead" style={{ marginTop: 'var(--space-sm)' }} aria-live="polite">
-              {error ? error.reason : stage === 'done' ? '잠정 검토까지 끝났습니다.' : '두 요소와 연결이 확인되면 후보를 만들고 잠정 검토까지 이어서 합니다.'}
+              {error ? `${failedAt} 단계에서 멈췄습니다. ${error.reason}` : NOW_SENTENCE[stage]}
             </p>
           </div>
+          <p className="elapsed num" aria-label="경과 시간">
+            <span className="elapsed__v">
+              {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
+            </span>
+            <span className="elapsed__k">{error ? '중단까지' : stage === 'done' ? '걸린 시간' : '경과'}</span>
+          </p>
         </div>
 
+        <NodeGraph stage={stage} error={error} durations={durations} />
+
         <div className="job">
-          <aside className="job__source" aria-label="원문" data-busy={!error && (stage === 'generate' || stage === 'review')}>
+          <aside className="job__source" aria-label="원문" data-busy={busy}>
             <span className="job__ring" aria-hidden="true" />
             <span className="job__sheen" aria-hidden="true" />
             <h2>원문</h2>
             <MathText text={SAMPLE_SOURCE.statement} className="math--statement" />
-            <ElementDiagram idea={idea} stage={stage} errored={!!error} />
           </aside>
 
-          <div>
+          <div className="job__found">
             {error ? (
               <div className="job__error" role="alert">
                 <h2>
@@ -104,37 +131,17 @@ export function Analyzing() {
                   </Link>
                 </div>
               </div>
-            ) : null}
-
-            <ol className="steps" aria-label="진행 단계" style={{ marginTop: error ? 'var(--space-xl)' : 0 }}>
-              {STAGES.map((s) => {
-                const state = stateOf(s.id)
-                return (
-                  <li key={s.id} className="step" data-state={state}>
-                    <span className="step__mark" aria-hidden="true">
-                      {state === 'done' ? <Check /> : state === 'error' ? <CircleAlert /> : ORDER.indexOf(s.id) + 1}
-                    </span>
-                    <div className="step__body">
-                      <span className="step__title">
-                        {s.title}
-                        <span className="visually-hidden">{state === 'done' ? ', 완료' : state === 'active' ? ', 진행 중' : state === 'error' ? ', 중단' : ''}</span>
-                      </span>
-                      <span className="step__detail">{s.detail}</span>
-                      {s.id === 'extract' && (state === 'active' || state === 'done' || state === 'error') && <IdeaLines idea={idea} />}
-                    </div>
-                  </li>
-                )
-              })}
-            </ol>
+            ) : (
+              <>
+                <h2>지금까지 찾은 것</h2>
+                <IdeaLines idea={idea} />
+              </>
+            )}
           </div>
         </div>
       </div>
     </div>
   )
-}
-
-function errorIndex(error: QuestionError) {
-  return error.error_code === 'UNREADABLE_INPUT' || error.error_code === 'INPUT_CONFLICT' ? 0 : 1
 }
 
 function IdeaLines({ idea }: { idea: Partial<SolutionIdea> }) {
@@ -158,87 +165,5 @@ function IdeaLines({ idea }: { idea: Partial<SolutionIdea> }) {
         <dd>{idea.mechanism || '두 요소의 연결 확인 중'}</dd>
       </div>
     </dl>
-  )
-}
-
-/**
- * Two element nodes, a mechanism line between them, a candidate node they
- * feed: drawn on by anime.js as the parser reports each part. Named as a
- * diagram of the real system (SolutionIdea → Question CANDIDATE).
- */
-function ElementDiagram({ idea, stage, errored }: { idea: Partial<SolutionIdea>; stage: JobStage; errored: boolean }) {
-  const ref = useRef<SVGSVGElement>(null)
-  const drawn = useRef<Set<string>>(new Set())
-  const e1 = !!idea.key_elements?.[0]
-  const e2 = !!idea.key_elements?.[1]
-  const mech = !!idea.mechanism
-  const cand = ['generate', 'review', 'done'].includes(stage)
-
-  useEffect(() => {
-    const root = ref.current
-    if (!root) return
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const draw = (selector: string, duration = 700) => {
-      if (drawn.current.has(selector)) return
-      drawn.current.add(selector)
-      const paths = root.querySelectorAll<SVGPathElement>(selector)
-      if (!paths.length) return
-      if (reduce) {
-        utils.set(paths, { opacity: 1 })
-        return
-      }
-      animate(svg.createDrawable(paths), { draw: ['0 0', '0 1'], duration, delay: stagger(120), ease: 'inOutSine' })
-      utils.set(paths, { opacity: 1 })
-    }
-    const pop = (selector: string) => {
-      if (drawn.current.has(selector)) return
-      drawn.current.add(selector)
-      const nodes = root.querySelectorAll(selector)
-      if (!nodes.length) return
-      if (reduce) {
-        utils.set(nodes, { opacity: 1 })
-        return
-      }
-      animate(nodes, { opacity: [0, 1], scale: [0.96, 1], duration: 360, ease: 'outQuad', delay: stagger(80) })
-    }
-    if (e1) pop('[data-node="e1"]')
-    if (e2) pop('[data-node="e2"]')
-    if (mech) {
-      draw('[data-path="mech"]', 800)
-      pop('[data-node="mech-label"]')
-    }
-    if (cand) {
-      draw('[data-path="to-cand"]', 600)
-      pop('[data-node="cand"]')
-    }
-  }, [e1, e2, mech, cand])
-
-  return (
-    <svg ref={ref} className="diagram" viewBox="0 0 360 150" role="img" aria-label="풀이 요소 두 개와 메커니즘, 후보 문항으로 이어지는 흐름도">
-      <g data-node="e1" style={{ opacity: e1 ? undefined : 0, transformOrigin: '60px 40px' }}>
-        <rect className="diagram__node" x="8" y="22" width="104" height="36" rx="8" data-on={e1} />
-        <text x="60" y="45" textAnchor="middle">
-          요소 1
-        </text>
-      </g>
-      <g data-node="e2" style={{ opacity: e2 ? undefined : 0, transformOrigin: '60px 112px' }}>
-        <rect className="diagram__node" x="8" y="94" width="104" height="36" rx="8" data-on={e2} />
-        <text x="60" y="117" textAnchor="middle">
-          요소 2
-        </text>
-      </g>
-      <path className="diagram__path" data-path="mech" d="M60 58 V94" style={{ opacity: mech ? undefined : 0 }} />
-      <text className="diagram__label" x="72" y="80" data-node="mech-label" style={{ opacity: mech ? undefined : 0 }}>
-        메커니즘
-      </text>
-      <path className="diagram__path" data-path="to-cand" d="M112 40 H150 Q170 40 170 60 V76 H236" style={{ opacity: cand ? undefined : 0 }} />
-      <path className="diagram__path" data-path="to-cand" d="M112 112 H150 Q170 112 170 92 V76" style={{ opacity: cand ? undefined : 0 }} />
-      <g data-node="cand" style={{ opacity: cand ? undefined : 0, transformOrigin: '296px 76px' }}>
-        <rect className="diagram__node" x="236" y="58" width="116" height="36" rx="8" data-on={cand} />
-        <text x="294" y="81" textAnchor="middle">
-          {errored ? '후보 없음' : '후보 문항'}
-        </text>
-      </g>
-    </svg>
   )
 }
