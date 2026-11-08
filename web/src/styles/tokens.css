@@ -63,6 +63,25 @@
   --font-body: "Pretendard Variable", Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
   --font-outlier: "KaTeX_Main", "Times New Roman", serif;
 
+  /* the analyzing screen's control-room panel: one dark instrument set into the paper page */
+  --g-bg: oklch(14% 0.02 282);
+  --g-band: oklch(12% 0.018 282);
+  --g-card: oklch(18% 0.02 282);
+  --g-pill: oklch(21% 0.02 282);
+  --g-wire: oklch(30% 0.025 282);
+  --g-rule: oklch(26% 0.022 282);
+  --g-white: oklch(97% 0.006 282);
+  --g-text: oklch(84% 0.012 282);
+  --g-muted: oklch(66% 0.015 282);
+  --g-light: oklch(76% 0.13 255);
+  --g-run: oklch(62% 0.2 275);
+  --g-pass: oklch(84% 0.17 150);
+  --g-fail: oklch(66% 0.2 15);
+  --g-teal: oklch(88% 0.12 180);
+  --g-violet: oklch(76% 0.15 300);
+  --g-gold: oklch(86% 0.15 85);
+  --g-pink: oklch(76% 0.17 350);
+  --g-orange: oklch(80% 0.13 55);
   --radius-xs: 4px; --radius-sm: 6px; --radius-card: 10px; --radius-lg: 14px; --radius-pill: 999px;
   --rule-hair: 1px;
   --shadow-card: 0 1px 2px oklch(20% 0.01 252 / 0.05);

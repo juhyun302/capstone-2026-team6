@@ -4,7 +4,8 @@ import { CircleAlert } from 'lucide-react'
 import { api, apiMode } from '../api'
 import type { JobEvent, JobStage, QuestionError, SolutionIdea } from '../api/types'
 import { MathText } from '../components/Math'
-import { NodeGraph, JOB_NODES, failedNodeIndex } from '../components/NodeGraph'
+import { NodeGraph } from '../components/graph/NodeGraph'
+import { STAGE_NAME, failedStage } from '../components/graph/model'
 import { estimate, type Mark } from './progress'
 
 // The waiting screen. A node graph shows where the job is and who is working
@@ -116,7 +117,7 @@ export function Analyzing() {
   const mm = Math.floor(elapsed / 60000)
   const ss = Math.floor((elapsed % 60000) / 1000)
   const busy = !error && (stage === 'generate' || stage === 'review')
-  const failedName = error ? JOB_NODES[failedNodeIndex(error, failedAt)].name : null
+  const failedName = error ? STAGE_NAME[failedStage(error, failedAt)] : null
 
   return (
     <div className="screen">
@@ -136,7 +137,8 @@ export function Analyzing() {
           </p>
         </div>
 
-        <NodeGraph stage={stage} error={error} failedAt={failedAt} durations={durations} />
+        {/* after a failure the graph keeps the stage it failed in, so the stages before it stay done */}
+        <NodeGraph stage={error && failedAt ? failedAt : stage} idea={idea} error={error} failedAt={failedAt} durations={durations} />
         {!error && <JobProgress marks={marks} running={running} now={now} />}
 
         <div className="job">
