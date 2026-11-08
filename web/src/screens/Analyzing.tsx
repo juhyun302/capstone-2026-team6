@@ -4,7 +4,8 @@ import { CircleAlert } from 'lucide-react'
 import { jobEvents } from '../api/mock'
 import type { JobEvent, JobStage, QuestionError, SolutionIdea } from '../api/types'
 import { MathText } from '../components/Math'
-import { NodeGraph, JOB_NODES, failedNodeIndex } from '../components/NodeGraph'
+import { NodeGraph } from '../components/graph/NodeGraph'
+import { failedIds } from '../components/graph/model'
 import { SAMPLE_SOURCE } from '../api/fixtures'
 
 // The waiting screen. A node graph shows where the job is and who is working
@@ -77,7 +78,7 @@ export function Analyzing() {
   const busy = !error && (stage === 'generate' || stage === 'review')
   const mm = Math.floor(elapsed / 60000)
   const ss = Math.floor((elapsed % 60000) / 1000)
-  const failedAt = error ? JOB_NODES[failedNodeIndex(error)].name : null
+  const failedAt = error ? (failedIds(error)[0].startsWith('rd_') ? '읽기' : '풀이 요소 추출') : null
 
   return (
     <div className="screen">
@@ -97,7 +98,7 @@ export function Analyzing() {
           </p>
         </div>
 
-        <NodeGraph stage={stage} error={error} durations={durations} />
+        <NodeGraph stage={stage} idea={idea} error={error} durations={durations} />
 
         <div className="job">
           <aside className="job__source" aria-label="원문" data-busy={busy}>
