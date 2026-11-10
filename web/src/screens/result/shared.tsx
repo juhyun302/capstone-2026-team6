@@ -48,28 +48,23 @@ export function useDecisions(result: GenerationResult) {
 
 export function DecideRow({ candidate, busy, onDecide }: { candidate: CandidateQuestion; busy: string | null; onDecide: (v: Verdict) => void }) {
   const review = candidate.review_result
+  if (review.reviewer_type !== 'AI') return null
   const flagged = review.validity_issue || review.curriculum_issue
   return (
     <div className="cand__decide" role="group" aria-label="내 판정">
-      {(['USE', 'REVISE', 'HOLD', 'REJECT'] as Verdict[]).map((v) => {
-        const chosen = review.reviewer_type !== 'AI' && review.verdict === v
-        return (
-          <button
-            key={v}
-            type="button"
-            className="btn btn--secondary btn--sm decide"
-            data-verdict={v}
-            aria-pressed={chosen}
-            onClick={() => {
-              if (!chosen) onDecide(v)
-            }}
-            disabled={busy !== null || (v === 'USE' && flagged)}
-            title={v === 'USE' && flagged ? '결함이나 교육과정 이탈이 표시된 후보는 사용 승인할 수 없습니다.' : undefined}
-          >
-            {busy === `${candidate.id}:${v}` ? '기록 중…' : DECIDE_LABEL[v]}
-          </button>
-        )
-      })}
+      {(['USE', 'REVISE', 'HOLD', 'REJECT'] as Verdict[]).map((v) => (
+        <button
+          key={v}
+          type="button"
+          className="btn btn--secondary btn--sm decide"
+          data-verdict={v}
+          onClick={() => onDecide(v)}
+          disabled={busy !== null || (v === 'USE' && flagged)}
+          title={v === 'USE' && flagged ? '결함이나 교육과정 이탈이 표시된 후보는 사용 승인할 수 없습니다.' : undefined}
+        >
+          {busy === `${candidate.id}:${v}` ? '기록 중…' : DECIDE_LABEL[v]}
+        </button>
+      ))}
     </div>
   )
 }

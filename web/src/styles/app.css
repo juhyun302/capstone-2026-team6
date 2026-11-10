@@ -338,7 +338,6 @@
 .decide[data-verdict="REJECT"] { --hover-ink: var(--color-reject); }
 @media (hover: hover) and (pointer: fine) { .decide:hover { border-color: var(--hover-ink); color: var(--hover-ink); background: transparent; } }
 .decide:focus-visible { border-color: var(--hover-ink); color: var(--hover-ink); }
-.decide[aria-pressed="true"], .decide[aria-pressed="true"]:hover { border-color: var(--hover-ink); color: var(--hover-ink); background: color-mix(in oklab, var(--hover-ink) 12%, transparent); }
 
 .sheet__bar { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: var(--space-xs) var(--space-lg); flex-wrap: wrap; padding-block: var(--space-md); background: var(--color-paper); border-top: var(--rule-hair) solid var(--color-rule-strong); }
 .sheet__tally { font-size: var(--text-sm); color: var(--color-ink-2); }
