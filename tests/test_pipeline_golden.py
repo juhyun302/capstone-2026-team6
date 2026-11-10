@@ -306,3 +306,32 @@ def test_design_retry_tells_the_designer_why_the_first_was_rejected():
     assert all(part in second["previous_error"] for part in ("p1", "changed_axes"))
     assert {key: value for key, value in second.items() if key != "previous_error"} == first
     assert result["status"] == "OK"
+
+
+def declined_designs():
+    no_axes = json.loads(FIX["design3"])
+    for plan in no_axes["plans"]:
+        plan["changed_axes"] = []
+    return [json.dumps({"plans": []}), json.dumps(no_axes, ensure_ascii=False)]
+
+
+@pytest.mark.parametrize("output", declined_designs(), ids=["no_plans", "no_axes"])
+def test_designer_declining_the_scope_stops_without_a_retry(output):
+    outputs = deepcopy(HAPPY)
+    outputs.update(design_candidates=[output], generate_candidate=[], solve_candidate=[],
+                   review_candidate=[])
+    model, result = run(outputs)
+    assert result["status"] == "QUESTION_ERROR"
+    assert result["error_code"] == "SCOPE_CONFLICT"
+    assert "교육과정 범위" in result["reason"]
+    assert result["solution_idea"] == json.loads(FIX["idea"])
+    assert result["candidates"] == []
+    assert model.left() == {name: 0 for name in PROMPTS}
+
+
+def test_one_plan_without_axes_is_still_a_malformed_design():
+    design = json.loads(FIX["design3"])
+    design["plans"][0]["changed_axes"] = []
+    result = validate_candidate_design(json.dumps(design, ensure_ascii=False), count=3)
+    assert result["status"] == "OUTPUT_ERROR"
+    assert result["error_code"] == "SCHEMA_INVALID"

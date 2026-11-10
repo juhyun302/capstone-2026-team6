@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { CircleAlert } from 'lucide-react'
 import { api, apiMode } from '../api'
+import { lastDraft } from '../api/draft'
 import type { JobEvent, JobStage, QuestionError, SolutionIdea } from '../api/types'
 import { MathText } from '../components/Math'
 import { NodeGraph } from '../components/graph/NodeGraph'
@@ -171,8 +172,8 @@ export function Analyzing() {
                   </ul>
                 )}
                 <div className="job__error-actions">
-                  <Link to="/new" className="btn btn--sm">
-                    원문 다시 올리기
+                  <Link to="/new" state={error.error_code === 'SCOPE_CONFLICT' ? { ...lastDraft(), scope: '' } : lastDraft()} className="btn btn--sm">
+                    {error.error_code === 'SCOPE_CONFLICT' ? '범위 다시 고르기' : '원문 다시 올리기'}
                   </Link>
                   <Link to="/" className="btn btn--secondary btn--sm">
                     처음으로

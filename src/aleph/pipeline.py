@@ -26,6 +26,15 @@ Draft7Validator.check_schema(_DESIGN_SCHEMA)
 _DESIGN_VALIDATOR = Draft7Validator(_DESIGN_SCHEMA)
 _PLAN_KEYS = list(_DESIGN_SCHEMA["properties"]["plans"]["items"]["properties"])
 MAX_CANDIDATES = 5
+_SCOPE_REASON = ("선택한 교육과정 범위 안에서는 이 문항의 연계문항을 설계할 수 없다는 답이 왔습니다. "
+                 "문항의 과목에 맞는 범위를 골라 다시 시도해 주세요.")
+
+
+def _declined(design) -> bool:
+    """A designer that cannot stay inside the scope answers with no plans or no changed axes."""
+    plans = design.get("plans") if isinstance(design, dict) else None
+    return isinstance(plans, list) and all(
+        isinstance(plan, dict) and plan.get("changed_axes") == [] for plan in plans)
 
 
 def _schema_problem(design) -> str:
@@ -73,6 +82,9 @@ def validate_candidate_design(raw_output: str, *, count: int) -> dict:
         design = _strict_json(raw_output)
     except ValueError:
         return _error("JSON_INVALID", "중복 키와 비표준 값이 없는 JSON 객체 하나가 필요합니다.", "design")
+    if _declined(design):
+        return {"status": "QUESTION_ERROR", "error_code": "SCOPE_CONFLICT",
+                "reason": _SCOPE_REASON, "design": None}
     if not _DESIGN_VALIDATOR.is_valid(design):
         return _error("SCHEMA_INVALID", f"설계안이 규칙을 어겼습니다: {_schema_problem(design)}.", "design")
     plans = design["plans"]

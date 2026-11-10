@@ -5,6 +5,7 @@ import type { CandidateQuestion, GenerationResult, Verdict } from '../../api/typ
 import { MathText } from '../../components/Math'
 import { Seal } from '../../components/Seal'
 import { VERDICT_LABEL } from '../../components/Verdict'
+import { ResultBar } from './ResultBar'
 import { approvalSentence, checksSentence, DecideRow, ResultHead, sealNote, SourceDialog, useDecisions } from './shared'
 
 // The plain view: candidates in two columns, solution and reasons folded.
@@ -32,6 +33,7 @@ export function PlainView({ result }: { result: GenerationResult }) {
           </motion.div>
         ))}
       </section>
+      <ResultBar result={result} candidates={candidates} />
     </article>
   )
 }

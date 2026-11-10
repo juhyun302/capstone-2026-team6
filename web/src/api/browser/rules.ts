@@ -209,10 +209,22 @@ function schemaProblem(design: unknown): string {
   return `${name}의 ${key} 형식이 맞지 않습니다`
 }
 
+const SCOPE_REASON = '선택한 교육과정 범위 안에서는 이 문항의 연계문항을 설계할 수 없다는 답이 왔습니다. 문항의 과목에 맞는 범위를 골라 다시 시도해 주세요.'
+
+/** A designer that cannot stay inside the scope answers with no plans or no changed axes. */
+function declined(design: unknown) {
+  const plans = design && typeof design === 'object' && !Array.isArray(design) ? (design as { plans?: unknown }).plans : null
+  return Array.isArray(plans) && plans.every((plan) => {
+    const axes = plan && typeof plan === 'object' && !Array.isArray(plan) ? (plan as { changed_axes?: unknown }).changed_axes : null
+    return Array.isArray(axes) && axes.length === 0
+  })
+}
+
 export function validateCandidateDesign(raw: unknown, count: number): Checked<{ plans: Plan[] }> {
   if (!Number.isInteger(count)) throw new TypeError('count must be an integer')
   const { value, error } = parsed(raw)
   if (error) return fail('JSON_INVALID', JSON_REASON)
+  if (declined(value)) return fail('SCOPE_CONFLICT', SCOPE_REASON, 'QUESTION_ERROR')
   if (!DESIGN(value)) return fail('SCHEMA_INVALID', `설계안이 규칙을 어겼습니다: ${schemaProblem(value)}.`)
   const design = value as { plans: Plan[] }
   const texts = design.plans.flatMap((plan) => Object.values(plan).flatMap((v) => (Array.isArray(v) ? v : [v])))

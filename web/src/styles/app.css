@@ -336,6 +336,13 @@
 @media (hover: hover) and (pointer: fine) { .decide:hover { border-color: var(--hover-ink); color: var(--hover-ink); background: transparent; } }
 .decide:focus-visible { border-color: var(--hover-ink); color: var(--hover-ink); }
 
+.sheet__bar { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: var(--space-xs) var(--space-lg); flex-wrap: wrap; padding-block: var(--space-md); background: var(--color-paper); border-top: var(--rule-hair) solid var(--color-rule-strong); }
+.sheet__tally { font-size: var(--text-sm); color: var(--color-ink-2); }
+.sheet__tally strong { color: var(--color-ink); font-weight: 600; }
+.sheet__bar-actions { display: flex; gap: var(--space-xs); flex-wrap: wrap; }
+.sheet__bar-hint { flex-basis: 100%; }
+@media (max-width: 40rem) { .sheet__bar { position: static; } }
+
 /* The seal: pressed over the candidate's heading */
 .cand__head { position: relative; display: flex; align-items: baseline; gap: var(--space-sm); min-height: 56px; }
 .cand__head h2 { font-size: var(--text-xl); }

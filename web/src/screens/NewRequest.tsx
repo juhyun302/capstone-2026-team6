@@ -1,9 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type DragEvent, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { motion, useReducedMotion } from 'motion/react'
 import { ArrowRight, Check, Circle, CircleAlert, ImageUp, Sigma, X } from 'lucide-react'
 import { MathText } from '../components/Math'
 import { api, apiMode } from '../api'
+import { rememberDraft, type Draft } from '../api/draft'
 import { DEFAULT_MODEL, accessMode, getSettings, setSettings, type AccessSettings } from '../api/settings'
 import { SAMPLE_SOURCE } from '../api/fixtures'
 import { CURRICULUM_OPTIONS, DEFAULT_INTENDED_USE, DEFAULT_TARGET_LEVEL } from '../api/config'
@@ -38,26 +39,29 @@ const WORDS = accessMode === 'password'
       note: '키는 이 브라우저에서 OpenAI로만 보냅니다. 기억하기를 끄면 탭을 닫거나 새로 고칠 때 지워집니다. 요청 한 번에 모델을 11번쯤 부르고, 비용은 키 주인 계정에 청구됩니다.',
     }
 
-const empty = (): PartState => ({ mode: 'text', text: '', file: null, preview: null })
+const filled = (text = ''): PartState => ({ mode: 'text', text, file: null, preview: null })
 const hasContent = (p: PartState) => (p.mode === 'text' ? p.text.trim().length > 0 : !!p.file)
 
 export function NewRequest() {
   const navigate = useNavigate()
-  const [problem, setProblem] = useState<PartState>(empty)
-  const [explanation, setExplanation] = useState<PartState>(empty)
-  const [scope, setScope] = useState<string>(CURRICULUM_OPTIONS[0])
+  const draft = useLocation().state as Draft | null
+  const [problem, setProblem] = useState<PartState>(() => filled(draft?.statement))
+  const [explanation, setExplanation] = useState<PartState>(() => filled(draft?.solution))
+  const [scope, setScope] = useState(draft?.scope ?? '')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [touched, setTouched] = useState(false)
   const [access, setAccess] = useState<AccessSettings>(getSettings)
   const problemRef = useRef<HTMLDivElement>(null)
   const keyRef = useRef<HTMLInputElement>(null)
+  const scopeRef = useRef<HTMLSelectElement>(null)
 
   const needsKey = apiMode === 'browser'
   const problemOk = hasContent(problem)
   const explanationOk = hasContent(explanation)
+  const scopeOk = scope !== ''
   const keyOk = !needsKey || access.secret.trim().length > 0
-  const ready = problemOk && explanationOk && keyOk
+  const ready = problemOk && explanationOk && scopeOk && keyOk
 
   useEffect(() => {
     const dirty = problem.text || explanation.text || problem.file || explanation.file
@@ -73,6 +77,11 @@ export function NewRequest() {
     e.preventDefault()
     setTouched(true)
     if (!ready) {
+      if (!scopeOk && problemOk && explanationOk) {
+        setError('교육과정 범위를 골라 주세요. 문항의 과목과 맞아야 후보를 만들 수 있습니다.')
+        scopeRef.current?.focus()
+        return
+      }
       if (!keyOk && problemOk && explanationOk) {
         setError(WORDS.missing)
         keyRef.current?.focus()
@@ -84,6 +93,7 @@ export function NewRequest() {
     }
     setError(null)
     setSubmitting(true)
+    rememberDraft({ statement: problem.text, solution: explanation.text, scope })
     if (needsKey) setSettings({ ...access, secret: access.secret.trim(), model: access.model.trim() || DEFAULT_MODEL })
     const req: GenerationRequest = {
       source_question: {
@@ -155,6 +165,7 @@ export function NewRequest() {
             <ul className="checklist" aria-label="제출 전 확인">
               <CheckItem ok={problemOk}>원문 문항이 있습니다</CheckItem>
               <CheckItem ok={explanationOk}>원문 해설이 있습니다</CheckItem>
+              <CheckItem ok={scopeOk}>교육과정 범위를 골랐습니다</CheckItem>
               {needsKey && <CheckItem ok={keyOk}>{WORDS.check}</CheckItem>}
             </ul>
 
@@ -196,13 +207,17 @@ export function NewRequest() {
 
             <label className="field">
               <span className="field__label">교육과정 범위</span>
-              <select name="curriculum_scope" className="select" value={scope} onChange={(e) => setScope(e.target.value)}>
+              <select ref={scopeRef} name="curriculum_scope" className="select" value={scope} onChange={(e) => setScope(e.target.value)} aria-invalid={touched && !scopeOk}>
+                <option value="" disabled>
+                  과목을 고르세요
+                </option>
                 {CURRICULUM_OPTIONS.map((option) => (
                   <option key={option} value={option}>
                     {option}
                   </option>
                 ))}
               </select>
+              <span className="field__hint">문항의 과목과 맞아야 합니다. 맞지 않으면 후보를 만들지 못합니다.</span>
             </label>
 
             <div className="submit-row">
