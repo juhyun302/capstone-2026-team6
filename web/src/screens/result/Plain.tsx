@@ -20,7 +20,7 @@ const AXIS_LABEL: Record<string, string> = {
 
 export function PlainView({ result }: { result: GenerationResult }) {
   const reduce = useReducedMotion()
-  const { candidates, decide, busy } = useDecisions(result)
+  const { candidates, decide, undo, busy } = useDecisions(result)
   const dialog = useRef<HTMLDialogElement>(null)
   return (
     <article className="sheet">
@@ -29,7 +29,7 @@ export function PlainView({ result }: { result: GenerationResult }) {
       <section className="sheet__candidates" aria-label="후보 문항">
         {candidates.map((c, i) => (
           <motion.div key={c.id} initial={reduce ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.42, delay: 0.08 * i, ease: [0.23, 1, 0.32, 1] }}>
-            <Candidate index={i} candidate={c} busy={busy} onDecide={(v) => decide(c, v)} />
+            <Candidate index={i} candidate={c} busy={busy} onDecide={(v) => decide(c, v)} onUndo={() => undo(c)} />
           </motion.div>
         ))}
       </section>
@@ -48,7 +48,7 @@ function Fold({ id, open, children }: { id: string; open: boolean; children: Rea
   )
 }
 
-function Candidate({ index, candidate, busy, onDecide }: { index: number; candidate: CandidateQuestion; busy: string | null; onDecide: (v: Verdict) => void }) {
+function Candidate({ index, candidate, busy, onDecide, onUndo }: { index: number; candidate: CandidateQuestion; busy: string | null; onDecide: (v: Verdict) => void; onUndo: () => void }) {
   const [openSolution, setOpenSolution] = useState(false)
   const [openReview, setOpenReview] = useState(false)
   const review = candidate.review_result
@@ -69,6 +69,11 @@ function Candidate({ index, candidate, busy, onDecide }: { index: number; candid
           {openReview ? '검토 근거 닫기' : '검토 근거 보기'}
           <ChevronDown aria-hidden="true" />
         </button>
+        {review.reviewer_type !== 'AI' && (
+          <button type="button" className="cand__undo" onClick={onUndo} disabled={busy !== null} aria-label="내 판정 취소" title="내 판정을 취소하고 AI 잠정 판정으로 되돌립니다">
+            Undo
+          </button>
+        )}
       </div>
       <div className="cand__folds">
         <Fold id={`sol-${candidate.id}`} open={openSolution}>

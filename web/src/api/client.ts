@@ -59,6 +59,10 @@ export async function getResult(resultId: string): Promise<GenerationResult | nu
   return parsed(response)
 }
 
+export async function undoHumanReview(resultId: string, candidateId: string): Promise<ReviewResult> {
+  return parsed(await fetch(`/api/results/${resultId}/candidates/${candidateId}/review`, { method: 'DELETE' }))
+}
+
 export async function recordHumanReview(resultId: string, candidateId: string, verdict: Verdict, reason: string): Promise<ReviewResult> {
   const response = await fetch(`/api/results/${resultId}/candidates/${candidateId}/review`, {
     method: 'POST',

@@ -249,4 +249,11 @@ def create_app(complete: Complete, *, count: int = 3, workers: int = 3) -> FastA
         }
         return candidate["review_result"]
 
+    @app.delete("/api/results/{result_id}/candidates/{candidate_id}/review")
+    def undo_human_review(result_id: str, candidate_id: str) -> dict:
+        """Cancel a person's decision; the candidate is back to the AI's provisional verdict."""
+        candidate = _candidate_of(results, result_id, candidate_id)
+        candidate["review_result"] = candidate["ai_review_result"]
+        return candidate["review_result"]
+
     return app

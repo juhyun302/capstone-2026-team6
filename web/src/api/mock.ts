@@ -213,6 +213,7 @@ export async function recordHumanReview(resultId: string, candidateId: string, v
   const result = store.results[resultId]
   const candidate = result?.candidates.find((c) => c.id === candidateId)
   if (!result || !candidate) throw new Error('후보를 찾을 수 없습니다.')
+  candidate.ai_review_result ??= candidate.review_result
   const next: ReviewResult = {
     ...candidate.review_result,
     verdict,
@@ -223,6 +224,17 @@ export async function recordHumanReview(resultId: string, candidateId: string, v
   candidate.review_result = next
   save(store)
   return next
+}
+
+/** Cancel a person's decision; the candidate is back to the AI's provisional verdict. */
+export async function undoHumanReview(resultId: string, candidateId: string): Promise<ReviewResult> {
+  await delay(200)
+  const store = load()
+  const candidate = store.results[resultId]?.candidates.find((c) => c.id === candidateId)
+  if (!candidate) throw new Error('후보를 찾을 수 없습니다.')
+  candidate.review_result = candidate.ai_review_result ?? candidate.review_result
+  save(store)
+  return candidate.review_result
 }
 
 export function resetMock() {

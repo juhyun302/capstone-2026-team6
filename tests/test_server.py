@@ -188,6 +188,34 @@ def test_flagged_candidate_cannot_be_approved(issue):
     assert candidate["review_result"]["approval_status"] == "PROVISIONAL"
 
 
+def test_undo_returns_a_candidate_to_the_ai_verdict(client):
+    result = finished_result(client)
+    url = f"/api/results/{result['id']}/candidates/p1/review"
+    client.post(url, json={"verdict": "USE", "reason": "승인"})
+    undone = client.delete(url)
+    assert undone.status_code == 200
+    assert undone.json()["reviewer_type"] == "AI"
+    assert undone.json()["approval_status"] == "PROVISIONAL"
+    assert undone.json()["verdict"] == REVIEW["verdict"]
+    assert undone.json()["reason"] == REVIEW["reason"]
+    candidate = client.get(f"/api/results/{result['id']}").json()["candidates"][0]
+    assert candidate["review_result"] == candidate["ai_review_result"]
+    assert client.post(url, json={"verdict": "HOLD", "reason": "보류"}).json()["reviewer_type"] == "SELF"
+
+
+def test_undo_without_a_human_decision_changes_nothing(client):
+    result = finished_result(client)
+    undone = client.delete(f"/api/results/{result['id']}/candidates/p1/review")
+    assert undone.status_code == 200
+    assert undone.json()["reviewer_type"] == "AI"
+
+
+def test_undo_for_unknown_ids_returns_404(client):
+    result = finished_result(client)
+    assert client.delete("/api/results/nope/candidates/p1/review").status_code == 404
+    assert client.delete(f"/api/results/{result['id']}/candidates/p9/review").status_code == 404
+
+
 @pytest.mark.parametrize("issue", ["validity_issue", "curriculum_issue"])
 def test_flagged_candidate_stays_unapprovable_after_a_human_decision(issue):
     client = TestClient(create_app(model(review={**REVIEW, "verdict": "REVISE", issue: True}),

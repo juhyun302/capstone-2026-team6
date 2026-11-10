@@ -32,16 +32,18 @@ export function useDecisions(result: GenerationResult) {
   const [candidates, setCandidates] = useState(result.candidates)
   const [busy, setBusy] = useState<string | null>(null)
   useEffect(() => setCandidates(result.candidates), [result])
-  async function decide(candidate: CandidateQuestion, verdict: Verdict) {
-    setBusy(`${candidate.id}:${verdict}`)
+  async function record(candidate: CandidateQuestion, action: string, call: () => Promise<ReviewResult>) {
+    setBusy(`${candidate.id}:${action}`)
     try {
-      const next = await api.recordHumanReview(result.id, candidate.id, verdict, REASON_BY_VERDICT[verdict])
+      const next = await call()
       setCandidates((list) => list.map((x) => (x.id === candidate.id ? { ...x, review_result: next } : x)))
     } finally {
       setBusy(null)
     }
   }
-  return { candidates, decide, busy }
+  const decide = (candidate: CandidateQuestion, verdict: Verdict) => record(candidate, verdict, () => api.recordHumanReview(result.id, candidate.id, verdict, REASON_BY_VERDICT[verdict]))
+  const undo = (candidate: CandidateQuestion) => record(candidate, 'undo', () => api.undoHumanReview(result.id, candidate.id))
+  return { candidates, decide, undo, busy }
 }
 
 export function DecideRow({ candidate, busy, onDecide }: { candidate: CandidateQuestion; busy: string | null; onDecide: (v: Verdict) => void }) {

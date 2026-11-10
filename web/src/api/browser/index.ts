@@ -221,3 +221,12 @@ export async function recordHumanReview(resultId: string, candidateId: string, v
   saveResults()
   return candidate.review_result
 }
+
+/** Cancel a person's decision; the candidate is back to the AI's provisional verdict. */
+export async function undoHumanReview(resultId: string, candidateId: string): Promise<ReviewResult> {
+  const candidate = results[resultId]?.candidates.find((c) => c.id === candidateId)
+  if (!candidate) throw new Error('후보를 찾을 수 없습니다.')
+  candidate.review_result = candidate.ai_review_result ?? candidate.review_result
+  saveResults()
+  return candidate.review_result
+}
