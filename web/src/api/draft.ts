@@ -4,6 +4,7 @@ export interface Draft {
   statement: string
   solution: string
   scope: string
+  count: number
 }
 
 let last: Draft | null = null

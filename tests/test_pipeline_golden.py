@@ -9,7 +9,11 @@ import yaml
 from jsonschema import Draft7Validator
 
 from aleph.generation import load_prompt
-from aleph.pipeline import generate_linked_questions, validate_candidate_design
+from aleph.pipeline import (
+    generate_linked_questions,
+    generate_more_questions,
+    validate_candidate_design,
+)
 from aleph.similarity import THRESHOLD, similarity
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -335,3 +339,79 @@ def test_one_plan_without_axes_is_still_a_malformed_design():
     result = validate_candidate_design(json.dumps(design, ensure_ascii=False), count=3)
     assert result["status"] == "OUTPUT_ERROR"
     assert result["error_code"] == "SCHEMA_INVALID"
+
+
+EXISTING = ["이미 만든 첫 문항이다", "이미 만든 둘째 문항이다"]
+HOLD = json.dumps({"validity_issue": False, "curriculum_issue": False, "transferable": False,
+                   "verdict": "HOLD", "reason": "보류한다."}, ensure_ascii=False)
+
+
+def more_outputs(**changes):
+    return {**deepcopy(HAPPY), "parse_query": [], **changes}
+
+
+def run_more(outputs, existing=EXISTING, count=3):
+    model = ScriptedModel(outputs)
+    result = generate_more_questions(deepcopy(REQUEST), json.loads(FIX["idea"]), existing, model,
+                                     count=count, workers=1)
+    return model, result
+
+
+def test_more_skips_extraction_and_designs_against_the_existing_questions():
+    model, result = run_more(more_outputs())
+    sent = model.sent("design_candidates")[0]
+    assert sent["existing_questions"] == EXISTING
+    assert sent["solution_idea"] == json.loads(FIX["idea"])
+    assert sent["count"] == 3
+    assert result["status"] == "OK"
+    assert result["solution_idea"] == json.loads(FIX["idea"])
+    assert model.left() == {name: 0 for name in PROMPTS}
+
+
+def test_more_flags_a_copy_of_an_existing_question():
+    statement = json.loads(FIX["c1"])["statement"]
+    _, result = run_more(more_outputs(review_candidate=[HOLD] * 3), existing=[statement])
+    checks = [c["surface_check"] for c in result["candidates"]]
+    assert checks[0]["copy_suspected"] is True
+    assert checks[0]["max_sibling_similarity"] >= THRESHOLD
+    assert checks[1]["copy_suspected"] is False
+
+
+def test_first_run_sends_no_existing_questions():
+    model, _ = run(HAPPY)
+    assert "existing_questions" not in model.sent("design_candidates")[0]
+
+
+def test_design_prompt_tells_how_to_use_existing_questions():
+    assert "existing_questions" in load_prompt("design_candidates")
+
+
+@pytest.mark.parametrize("existing, count", [(["문항"] * 8, 2), (EXISTING, 0), (EXISTING, 6),
+                                             (EXISTING, "2"), (EXISTING, True), ([], 2)])
+def test_more_refuses_a_bad_count_before_any_model_call(existing, count):
+    def model(system, user):
+        raise AssertionError("model must not be called")
+
+    with pytest.raises((ValueError, TypeError)):
+        generate_more_questions(deepcopy(REQUEST), json.loads(FIX["idea"]), existing, model,
+                                count=count)
+
+
+@pytest.mark.parametrize("output", declined_designs(), ids=["no_plans", "no_axes"])
+def test_more_that_is_declined_says_no_more_designs(output):
+    outputs = more_outputs(design_candidates=[output], generate_candidate=[], solve_candidate=[],
+                           review_candidate=[])
+    model, result = run_more(outputs)
+    assert result["status"] == "QUESTION_ERROR"
+    assert result["error_code"] == "NO_MORE_DESIGNS"
+    assert "겹치지" in result["reason"]
+    assert result["candidates"] == []
+    assert model.left() == {name: 0 for name in PROMPTS}
+
+
+def test_more_retries_a_malformed_design_once():
+    model, result = run_more(more_outputs(design_candidates=[FIX["narrow"], FIX["design3"]]))
+    first, second = model.sent("design_candidates")
+    assert second["existing_questions"] == EXISTING
+    assert "previous_error" in second and "previous_error" not in first
+    assert result["status"] == "OK"

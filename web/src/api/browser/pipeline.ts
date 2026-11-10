@@ -62,6 +62,7 @@ export interface LinkedQuestions {
 
 const CONDITIONS = ['intended_use', 'target_level', 'curriculum_scope'] as const
 export const MAX_CANDIDATES = 5
+export const MAX_TOTAL_CANDIDATES = 9
 
 function sourceText(sourceQuestion: GenerationRequest['source_question']) {
   const source: Record<'problem' | 'explanation', string> = { problem: '', explanation: '' }
@@ -146,8 +147,8 @@ async function mapLimit<T, R>(items: T[], limit: number, task: (item: T, index: 
 }
 
 /** Flag a later candidate, never the earlier one, when two are nearly the same. */
-function surfaceChecks(problem: string, statements: (string | null)[]): (SurfaceCheck | null)[] {
-  const seen: string[] = []
+function surfaceChecks(problem: string, statements: (string | null)[], existing: string[]): (SurfaceCheck | null)[] {
+  const seen = [...existing]
   return statements.map((statement) => {
     if (statement === null) return null
     const toSource = similarity(problem, statement)
@@ -157,29 +158,20 @@ function surfaceChecks(problem: string, statements: (string | null)[]): (Surface
   })
 }
 
-export async function generateLinkedQuestions(request: GenerationRequest, complete: Complete, { count = 3, workers = 3 } = {}): Promise<LinkedQuestions> {
+function checkCount(count: number) {
   if (!Number.isInteger(count)) throw new TypeError('count must be an integer')
   if (count < 1 || count > MAX_CANDIDATES) throw new RangeError(`count must be between 1 and ${MAX_CANDIDATES}`)
-  const { source, conditions } = checkGenerationRequest(request)
+}
 
-  const extraction = await extractSolutionIdea(request.source_question, complete)
-  if (extraction.status !== 'OK' || !extraction.value) {
-    return { status: extraction.status, error_code: extraction.error_code, reason: extraction.reason, solution_idea: null, candidates: [] }
-  }
-  const idea = extraction.value
-
-  const designed = await design(complete, { source_question: source, solution_idea: idea, count, ...conditions }, count)
-  if (designed.status !== 'OK' || !designed.value) {
-    return { status: designed.status, error_code: designed.error_code, reason: designed.reason, solution_idea: idea, candidates: [] }
-  }
-  const plans = designed.value.plans
-
+/** Return every planned candidate; only reviewed ones carry a question to show (AC7). */
+async function draftAndReview(source: Record<'problem' | 'explanation', string>, conditions: Record<string, string>, idea: SolutionIdea, plans: Plan[],
+  complete: Complete, workers: number, existing: string[]): Promise<LinkedQuestions> {
   const drafts = await mapLimit(plans, workers, (plan) => {
     const siblings = plans.filter((other) => other.id !== plan.id)
     const user = JSON.stringify({ source_question: source, solution_idea: idea, plan, sibling_plans: siblings, ...conditions })
     return firstValid(complete, PROMPTS.generate_candidate, user, validateCandidateQuestion)
   })
-  const checks = surfaceChecks(source.problem, drafts.map((d) => (d.status === 'OK' && d.value ? d.value.statement : null)))
+  const checks = surfaceChecks(source.problem, drafts.map((d) => (d.status === 'OK' && d.value ? d.value.statement : null)), existing)
   const reviews = await mapLimit(plans, workers, (_plan, index) => {
     const draft = drafts[index]
     if (draft.status !== 'OK' || !draft.value) return Promise.resolve(null)
@@ -201,4 +193,37 @@ export async function generateLinkedQuestions(request: GenerationRequest, comple
     return { status: 'OUTPUT_ERROR', error_code: candidates[0].error_code, reason: '검토까지 마친 후보가 하나도 없습니다.', solution_idea: idea, candidates }
   }
   return { status: 'OK', error_code: null, reason: null, solution_idea: idea, candidates }
+}
+
+export async function generateLinkedQuestions(request: GenerationRequest, complete: Complete, { count = 3, workers = 3 } = {}): Promise<LinkedQuestions> {
+  checkCount(count)
+  const { source, conditions } = checkGenerationRequest(request)
+
+  const extraction = await extractSolutionIdea(request.source_question, complete)
+  if (extraction.status !== 'OK' || !extraction.value) {
+    return { status: extraction.status, error_code: extraction.error_code, reason: extraction.reason, solution_idea: null, candidates: [] }
+  }
+  const idea = extraction.value
+
+  const designed = await design(complete, { source_question: source, solution_idea: idea, count, ...conditions }, count)
+  if (designed.status !== 'OK' || !designed.value) {
+    return { status: designed.status, error_code: designed.error_code, reason: designed.reason, solution_idea: idea, candidates: [] }
+  }
+  return draftAndReview(source, conditions, idea, designed.value.plans, complete, workers, [])
+}
+
+const NO_MORE_REASON = '이미 만든 후보와 겹치지 않는 설계안을 더 만들지 못했다는 답이 왔습니다. 결과 화면으로 돌아가 다른 유형으로 시작해 주세요.'
+
+/** Add candidates on an extracted SolutionIdea, away from the questions already made. */
+export async function generateMoreQuestions(request: GenerationRequest, idea: SolutionIdea, existing: string[], complete: Complete, { count = 2, workers = 3 } = {}): Promise<LinkedQuestions> {
+  checkCount(count)
+  if (!existing.length || existing.length + count > MAX_TOTAL_CANDIDATES) throw new RangeError(`existing and new candidates must total at most ${MAX_TOTAL_CANDIDATES}`)
+  const { source, conditions } = checkGenerationRequest(request)
+
+  const designed = await design(complete, { source_question: source, solution_idea: idea, count, ...conditions, existing_questions: existing }, count)
+  if (designed.error_code === 'SCOPE_CONFLICT') return { status: designed.status, error_code: 'NO_MORE_DESIGNS', reason: NO_MORE_REASON, solution_idea: idea, candidates: [] }
+  if (designed.status !== 'OK' || !designed.value) {
+    return { status: designed.status, error_code: designed.error_code, reason: designed.reason, solution_idea: idea, candidates: [] }
+  }
+  return draftAndReview(source, conditions, idea, designed.value.plans, complete, workers, existing)
 }

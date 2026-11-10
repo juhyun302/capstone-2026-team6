@@ -26,8 +26,11 @@ Draft7Validator.check_schema(_DESIGN_SCHEMA)
 _DESIGN_VALIDATOR = Draft7Validator(_DESIGN_SCHEMA)
 _PLAN_KEYS = list(_DESIGN_SCHEMA["properties"]["plans"]["items"]["properties"])
 MAX_CANDIDATES = 5
+MAX_TOTAL_CANDIDATES = 9
 _SCOPE_REASON = ("선택한 교육과정 범위 안에서는 이 문항의 연계문항을 설계할 수 없다는 답이 왔습니다. "
                  "문항의 과목에 맞는 범위를 골라 다시 시도해 주세요.")
+_NO_MORE_REASON = ("이미 만든 후보와 겹치지 않는 설계안을 더 만들지 못했다는 답이 왔습니다. "
+                   "결과 화면으로 돌아가 다른 유형으로 시작해 주세요.")
 
 
 def _declined(design) -> bool:
@@ -118,9 +121,9 @@ def _draft(complete: Complete, source: dict, idea: dict, conditions: dict, plans
                         validate_candidate_question)
 
 
-def _surface_checks(source_problem: str, statements: list) -> list:
+def _surface_checks(source_problem: str, statements: list, existing: list) -> list:
     """Flag a later candidate, never the earlier one, when two are nearly the same."""
-    checks, seen = [], []
+    checks, seen = [], list(existing)
     for statement in statements:
         if statement is None:
             checks.append(None)
@@ -133,32 +136,26 @@ def _surface_checks(source_problem: str, statements: list) -> list:
     return checks
 
 
-def generate_linked_questions(request: dict, complete: Complete, *, count: int = 3,
-                              workers: int = 3) -> dict:
-    """Return every planned candidate; only reviewed ones carry a question to show (AC7)."""
+def _check_count(count) -> None:
     if isinstance(count, bool) or not isinstance(count, int):
         raise TypeError("count must be an integer")
     if not 1 <= count <= MAX_CANDIDATES:
         raise ValueError(f"count must be between 1 and {MAX_CANDIDATES}")
-    source, conditions = check_generation_request(request)
 
-    extraction = extract_solution_idea(request["source_question"], complete)
-    if extraction["status"] != "OK":
-        return {**extraction, "candidates": []}
-    idea = extraction["solution_idea"]
 
-    design_input = {"source_question": source, "solution_idea": idea, "count": count, **conditions}
-    designed = _design(complete, design_input, count)
-    if designed["status"] != "OK":
-        return {"status": designed["status"], "error_code": designed["error_code"],
-                "reason": designed["reason"], "solution_idea": idea, "candidates": []}
-    plans = designed["design"]["plans"]
+def _design_failure(designed: dict, idea: dict) -> dict:
+    return {"status": designed["status"], "error_code": designed["error_code"],
+            "reason": designed["reason"], "solution_idea": idea, "candidates": []}
 
+
+def _draft_and_review(request: dict, source: dict, conditions: dict, idea: dict, plans: list,
+                      complete: Complete, workers: int, existing: list) -> dict:
+    """Return every planned candidate; only reviewed ones carry a question to show (AC7)."""
     with ThreadPoolExecutor(max_workers=workers) as pool:
         drafts = list(pool.map(partial(_draft, complete, source, idea, conditions, plans), plans))
     checks = _surface_checks(source["problem"], [
         draft["candidate_question"]["statement"] if draft["status"] == "OK" else None
-        for draft in drafts])
+        for draft in drafts], existing)
 
     def review(index):
         if drafts[index]["status"] != "OK":
@@ -191,3 +188,41 @@ def generate_linked_questions(request: dict, complete: Complete, *, count: int =
                 "candidates": candidates}
     return {"status": "OK", "error_code": None, "reason": None, "solution_idea": idea,
             "candidates": candidates}
+
+
+def generate_linked_questions(request: dict, complete: Complete, *, count: int = 3,
+                              workers: int = 3) -> dict:
+    """Extract the SolutionIdea, then design, draft and review count candidates."""
+    _check_count(count)
+    source, conditions = check_generation_request(request)
+
+    extraction = extract_solution_idea(request["source_question"], complete)
+    if extraction["status"] != "OK":
+        return {**extraction, "candidates": []}
+    idea = extraction["solution_idea"]
+
+    design_input = {"source_question": source, "solution_idea": idea, "count": count, **conditions}
+    designed = _design(complete, design_input, count)
+    if designed["status"] != "OK":
+        return _design_failure(designed, idea)
+    return _draft_and_review(request, source, conditions, idea, designed["design"]["plans"],
+                             complete, workers, [])
+
+
+def generate_more_questions(request: dict, solution_idea: dict, existing: list, complete: Complete,
+                            *, count: int = 2, workers: int = 3) -> dict:
+    """Add candidates on an extracted SolutionIdea, away from the questions already made."""
+    _check_count(count)
+    if not existing or len(existing) + count > MAX_TOTAL_CANDIDATES:
+        raise ValueError(f"existing and new candidates must total at most {MAX_TOTAL_CANDIDATES}")
+    source, conditions = check_generation_request(request)
+
+    design_input = {"source_question": source, "solution_idea": solution_idea, "count": count,
+                    **conditions, "existing_questions": list(existing)}
+    designed = _design(complete, design_input, count)
+    if designed["error_code"] == "SCOPE_CONFLICT":
+        designed = {**designed, "error_code": "NO_MORE_DESIGNS", "reason": _NO_MORE_REASON}
+    if designed["status"] != "OK":
+        return _design_failure(designed, solution_idea)
+    return _draft_and_review(request, source, conditions, solution_idea, designed["design"]["plans"],
+                             complete, workers, list(existing))

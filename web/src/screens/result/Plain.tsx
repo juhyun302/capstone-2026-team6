@@ -59,7 +59,7 @@ function Candidate({ index, candidate, busy, onDecide }: { index: number; candid
         <Seal verdict={review.verdict} note={sealNote(review)} provisional={review.reviewer_type === 'AI'} replayKey={`${review.reviewer_type}-${review.verdict}`} className="cand__seal" />
       </div>
       <p className="cand__verdict-note">{approvalSentence(review)}</p>
-      <MathText text={candidate.statement} className="sheet__statement" />
+      <MathText statement text={candidate.statement} className="sheet__statement" />
       <div className="cand__tools">
         <button type="button" className="disclose-btn" aria-expanded={openSolution} aria-controls={`sol-${candidate.id}`} onClick={() => setOpenSolution((o) => !o)}>
           {openSolution ? '풀이 닫기' : '풀이 보기'}

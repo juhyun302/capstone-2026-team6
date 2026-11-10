@@ -2,8 +2,8 @@ import type { JobStage, QuestionError, SolutionIdea } from '../../api/types'
 
 // The job as a wired graph. Every node and branch here is a real part of the
 // pipeline in docs/SPEC.md: three readings of the source, the four parts of
-// a SolutionIdea, the six ordered checks of validate_solution_idea, three
-// candidates generated in parallel (one per design plan, src/aleph/pipeline.py),
+// a SolutionIdea, the six ordered checks of validate_solution_idea, the requested
+// number of candidates generated in parallel (one per design plan, src/aleph/pipeline.py),
 // two review axes, and the review items each candidate gets. Nothing is
 // invented for the picture.
 
@@ -49,16 +49,24 @@ export interface Edge {
   delay: number
 }
 
-export const WORLD = { w: 1480, h: 600 }
-
+const WORLD_W = 1480
+const WORLD_H = 600
 const CARD_W = 168
 const CARD_H = 78
+const CARD_GAP = 14
+/** The candidate column is drawn for three; more cards make the panel taller. */
+const BASE_SLOTS = 3
+const CANDIDATE_NOTES = ['메커니즘을 응용한 문항과 풀이', '다른 응용의 문항과 풀이', '또 다른 응용의 문항과 풀이']
 
 function card(id: string, x: number, y: number, name: string, role: Role, engine: string, sub: string, group: string, extra: Partial<GNode> = {}): GNode {
   return { id, kind: 'card', x, y, w: CARD_W, h: CARD_H, name, role, engine, sub, group, ...extra }
 }
 
-export function buildGraph() {
+export function buildGraph(count: number) {
+  const slots = Math.max(BASE_SLOTS, count)
+  const extra = (slots - BASE_SLOTS) * (CARD_H + CARD_GAP)
+  // the columns left of the candidates stay centred on the taller panel
+  const dy = extra / 2
   const nodes: GNode[] = []
   const groups: Group[] = []
   const edges: Edge[] = []
@@ -73,14 +81,14 @@ export function buildGraph() {
     ['src_etxt', '해설 텍스트'],
     ['src_scope', '교육과정 범위'],
   ]
-  sources.forEach(([id, name], i) => nodes.push({ id, kind: 'pill', x: 16, y: 150 + i * 60, w: 104, h: 30, name }))
+  sources.forEach(([id, name], i) => nodes.push({ id, kind: 'pill', x: 16, y: 150 + dy + i * 60, w: 104, h: 30, name }))
 
   // hub
-  nodes.push({ id: 'hub', kind: 'hub', x: 176, y: 262, w: 96, h: 96, name: '원문' })
+  nodes.push({ id: 'hub', kind: 'hub', x: 176, y: 262 + dy, w: 96, h: 96, name: '원문' })
   sources.forEach(([id]) => link(id, 'hub'))
 
   // group: 읽기 (code)
-  const gRead = { id: 'read', name: '읽기', color: 'var(--g-teal)', x: 316, y: 128, w: CARD_W + 32, h: 3 * CARD_H + 2 * 14 + 52 }
+  const gRead = { id: 'read', name: '읽기', color: 'var(--g-teal)', x: 316, y: 128 + dy, w: CARD_W + 32, h: 3 * CARD_H + 2 * 14 + 52 }
   groups.push(gRead)
   const readCards = [
     card('rd_formula', gRead.x + 16, gRead.y + 40, '수식 판독', '코드', 'OCR·KaTeX', '이미지 속 수식을 텍스트로', 'read', { stage: 'read' }),
@@ -91,7 +99,7 @@ export function buildGraph() {
   readCards.forEach((c, i) => link('hub', c.id, i * 90))
 
   // group: 풀이 요소 추출 (AI) — the four fields of SolutionIdea
-  const gEx = { id: 'extract', name: '풀이 요소 추출', color: 'var(--g-violet)', x: 548, y: 60, w: CARD_W + 32, h: 4 * CARD_H + 3 * 14 + 52 }
+  const gEx = { id: 'extract', name: '풀이 요소 추출', color: 'var(--g-violet)', x: 548, y: 60 + dy, w: CARD_W + 32, h: 4 * CARD_H + 3 * 14 + 52 }
   groups.push(gEx)
   const exCards = [
     card('ex_concept', gEx.x + 16, gEx.y + 40, '개념', 'AI', 'LLM 파서', '중심 수학 개념 하나', 'extract', { stage: 'extract', ideaKey: 'concept' }),
@@ -107,25 +115,24 @@ export function buildGraph() {
   link('rd_cond', 'ex_e2', 180)
 
   // group: 구조 검증 (code) — validate_solution_idea, six ordered checks
-  const gVal = { id: 'validate', name: '구조 검증', color: 'var(--g-gold)', x: 780, y: 230, w: CARD_W + 32, h: CARD_H + 52 + 28 }
+  const gVal = { id: 'validate', name: '구조 검증', color: 'var(--g-gold)', x: 780, y: 230 + dy, w: CARD_W + 32, h: CARD_H + 52 + 28 }
   groups.push(gVal)
   nodes.push(card('val', gVal.x + 16, gVal.y + 40, 'validate_solution_idea', '코드', 'aleph.validation', 'JSON, 스키마, 빈 문자열, 비교 근거, 요소 2개, 메커니즘', 'validate', { stage: 'validate', h: CARD_H + 28 }))
   exCards.forEach((c, i) => link(c.id, 'val', i * 70))
 
-  // group: 후보 생성 (AI), three candidates in parallel, one per design plan
-  const gGen = { id: 'generate', name: '후보 생성', color: 'var(--g-pink)', x: 1012, y: 40, w: CARD_W + 32, h: 3 * CARD_H + 2 * 14 + 52 }
+  // group: 후보 생성 (AI), one card per candidate, in parallel; fewer than three sit centred
+  const gGen = { id: 'generate', name: '후보 생성', color: 'var(--g-pink)', x: 1012, y: 40, w: CARD_W + 32, h: slots * CARD_H + (slots - 1) * CARD_GAP + 52 }
   groups.push(gGen)
-  const genCards = [
-    card('gen_1', gGen.x + 16, gGen.y + 40, '후보 1', 'AI', 'LLM 생성', '메커니즘을 응용한 문항과 풀이', 'generate', { stage: 'generate' }),
-    card('gen_2', gGen.x + 16, gGen.y + 40 + CARD_H + 14, '후보 2', 'AI', 'LLM 생성', '다른 응용의 문항과 풀이', 'generate', { stage: 'generate' }),
-    card('gen_3', gGen.x + 16, gGen.y + 40 + 2 * (CARD_H + 14), '후보 3', 'AI', 'LLM 생성', '또 다른 응용의 문항과 풀이', 'generate', { stage: 'generate' }),
-  ]
+  const firstCard = gGen.y + 40 + ((slots - count) * (CARD_H + CARD_GAP)) / 2
+  const genCards = Array.from({ length: count }, (_, i) =>
+    card(`gen_${i + 1}`, gGen.x + 16, firstCard + i * (CARD_H + CARD_GAP), `후보 ${i + 1}`, 'AI', 'LLM 생성', CANDIDATE_NOTES[Math.min(i, CANDIDATE_NOTES.length - 1)], 'generate', { stage: 'generate' }),
+  )
   nodes.push(...genCards)
   genCards.forEach((c, i) => link('val', c.id, i * 120))
   link('src_scope', 'gen_1', 200)
 
   // group: 잠정 검토 (AI), two axes
-  const gRev = { id: 'review', name: '잠정 검토', color: 'var(--g-orange)', x: 1012, y: 372, w: CARD_W + 32, h: 2 * CARD_H + 14 + 52 }
+  const gRev = { id: 'review', name: '잠정 검토', color: 'var(--g-orange)', x: 1012, y: 372 + extra, w: CARD_W + 32, h: 2 * CARD_H + 14 + 52 }
   groups.push(gRev)
   const revCards = [
     card('rev_valid', gRev.x + 16, gRev.y + 40, '수학적 성립', 'AI', 'LLM 검토', '조건 누락, 경계값, 정의역', 'review', { stage: 'review' }),
@@ -140,7 +147,8 @@ export function buildGraph() {
   const chipW = 68
   const chipH = 22
   let k = 0
-  ;[1, 2, 3].forEach((cand) => {
+  genCards.forEach((_, index) => {
+    const cand = index + 1
     items.forEach((it, j) => {
       const col = k % 3
       const row = Math.floor(k / 3)
@@ -152,12 +160,12 @@ export function buildGraph() {
   })
 
   // completion ring and the person
-  nodes.push({ id: 'ring', kind: 'ring', x: 1294, y: 420, w: 120, h: 120, name: '잠정 검토', arrival: true })
+  nodes.push({ id: 'ring', kind: 'ring', x: 1294, y: 420 + extra, w: 120, h: 120, name: '잠정 검토', arrival: true })
   nodes.filter((n) => n.kind === 'chip').forEach((c, i) => link(c.id, 'ring', i * 40))
-  nodes.push({ id: 'person', kind: 'person', x: 1244, y: 556, w: 220, h: 30, name: '사용 승인은 강사가, 다음 화면에서', role: '사람', arrival: true })
+  nodes.push({ id: 'person', kind: 'person', x: 1244, y: 556 + extra, w: 220, h: 30, name: '사용 승인은 강사가, 다음 화면에서', role: '사람', arrival: true })
   link('ring', 'person')
 
-  return { nodes, groups, edges }
+  return { nodes, groups, edges, world: { w: WORLD_W, h: WORLD_H + extra } }
 }
 
 const ORDER: JobStage[] = ['read', 'extract', 'validate', 'generate', 'review', 'done']
@@ -170,11 +178,11 @@ export function failedStage(error: QuestionError, at?: JobStage): JobStage {
   return at === 'validate' || at === 'generate' || at === 'review' ? at : 'extract'
 }
 
-export function failedIds(error: QuestionError, at?: JobStage): string[] {
+export function failedIds(error: QuestionError, nodes: GNode[], at?: JobStage): string[] {
   const stage = failedStage(error, at)
   if (stage === 'read') return ['rd_formula', 'rd_match']
   if (stage === 'validate') return ['val']
-  if (stage === 'generate') return ['gen_1', 'gen_2', 'gen_3']
+  if (stage === 'generate') return nodes.filter((n) => n.group === 'generate').map((n) => n.id)
   if (stage === 'review') return ['rev_valid', 'rev_curr']
   if (error.error_code === 'MISSING_MECHANISM') return ['ex_mech']
   if (error.error_code === 'MISSING_ELEMENTS') return ['ex_e2']
@@ -202,7 +210,7 @@ export function stageStates(nodes: GNode[], edges: Edge[], stage: JobStage, idea
     } else st[n.id] = 'pending'
   }
   if (error) {
-    const failed = new Set(failedIds(error, failedAt))
+    const failed = new Set(failedIds(error, nodes, failedAt))
     // everything downstream of a failed node is blocked
     const down = new Set<string>()
     const walk = (id: string) => edges.filter((e) => e.from === id).forEach((e) => (down.has(e.to) ? null : (down.add(e.to), walk(e.to))))

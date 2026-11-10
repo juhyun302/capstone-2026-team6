@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { JobStage, QuestionError, SolutionIdea } from '../../api/types'
-import { buildGraph, stageStates, WORLD, type Edge, type GNode, type NodeState } from './model'
+import { buildGraph, stageStates, type Edge, type GNode, type NodeState } from './model'
 import './graph.css'
 
 // A control-room panel: dark ground, unlit wires laid thin, and light that
@@ -62,17 +62,18 @@ function portIn(n: GNode): Pt {
   return { x: n.x, y: n.y + n.h / 2 }
 }
 
-const GRAPH = buildGraph()
-const BY_ID = Object.fromEntries(GRAPH.nodes.map((n) => [n.id, n]))
-const WIRES: Record<string, Wire> = Object.fromEntries(GRAPH.edges.map((e) => [e.id, wire(portOut(BY_ID[e.from]), portIn(BY_ID[e.to]))]))
-const IN_EDGES: Record<string, Edge[]> = {}
-const OUT_EDGES: Record<string, Edge[]> = {}
-for (const e of GRAPH.edges) {
-  ;(IN_EDGES[e.to] ??= []).push(e)
-  ;(OUT_EDGES[e.from] ??= []).push(e)
+/** The wired picture for one candidate count; the caller remounts this component when the count changes. */
+function layoutOf(count: number) {
+  const GRAPH = buildGraph(count)
+  const byId = Object.fromEntries(GRAPH.nodes.map((n) => [n.id, n]))
+  const WIRES: Record<string, Wire> = Object.fromEntries(GRAPH.edges.map((e) => [e.id, wire(portOut(byId[e.from]), portIn(byId[e.to]))]))
+  const IN_EDGES: Record<string, Edge[]> = {}
+  for (const e of GRAPH.edges) (IN_EDGES[e.to] ??= []).push(e)
+  return { GRAPH, WIRES, IN_EDGES, WORLD: GRAPH.world }
 }
 
-export function NodeGraph({ stage, idea, error, failedAt, durations }: { stage: JobStage; idea: Partial<SolutionIdea>; error: QuestionError | null; failedAt?: JobStage; durations: Partial<Record<string, number>> }) {
+export function NodeGraph({ count, stage, idea, error, failedAt, durations }: { count: number; stage: JobStage; idea: Partial<SolutionIdea>; error: QuestionError | null; failedAt?: JobStage; durations: Partial<Record<string, number>> }) {
+  const { GRAPH, WIRES, IN_EDGES, WORLD } = useMemo(() => layoutOf(count), [count])
   const root = useRef<HTMLDivElement>(null)
   const canvas = useRef<HTMLCanvasElement>(null)
   const [scale, setScale] = useState(1)
@@ -88,9 +89,9 @@ export function NodeGraph({ stage, idea, error, failedAt, durations }: { stage: 
     ro.observe(el)
     fit()
     return () => ro.disconnect()
-  }, [])
+  }, [WORLD])
 
-  const stageSt = useMemo(() => stageStates(GRAPH.nodes, GRAPH.edges, stage, idea, error, failedAt), [stage, idea, error, failedAt])
+  const stageSt = useMemo(() => stageStates(GRAPH.nodes, GRAPH.edges, stage, idea, error, failedAt), [GRAPH, stage, idea, error, failedAt])
 
   // Arrival-driven nodes: a chip is done when its wire arrived; the ring when every chip's wire arrived; the person when the ring's wire arrived.
   const states = useMemo(() => {
@@ -103,7 +104,7 @@ export function NodeGraph({ stage, idea, error, failedAt, durations }: { stage: 
       st[n.id] = all ? 'done' : some ? 'running' : 'pending'
     }
     return st
-  }, [stageSt, arrivedAt])
+  }, [GRAPH, IN_EDGES, stageSt, arrivedAt])
 
   // Light bookkeeping lives in refs; the draw loop reads them every frame.
   const lit = useRef<Record<string, number>>({})
@@ -133,7 +134,7 @@ export function NodeGraph({ stage, idea, error, failedAt, durations }: { stage: 
         travel.current.set(e.id, { start: now + 60 + e.delay, dur: Math.min(950, Math.max(380, (g.len / 760) * 1000)) })
       }
     }
-  }, [states, reduce])
+  }, [GRAPH, IN_EDGES, WIRES, states, reduce])
 
   useEffect(() => {
     const cv = canvas.current
@@ -251,7 +252,7 @@ export function NodeGraph({ stage, idea, error, failedAt, durations }: { stage: 
     }
     raf = requestAnimationFrame(draw)
     return () => cancelAnimationFrame(raf)
-  }, [reduce])
+  }, [GRAPH, WIRES, WORLD, reduce])
 
   const chips = GRAPH.nodes.filter((n) => n.kind === 'chip')
   const chipsDone = chips.filter((c) => states[c.id] === 'done').length

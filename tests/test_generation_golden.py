@@ -209,6 +209,54 @@ def test_prompt_is_only_the_marked_part(name):
     assert "prompt_version" not in prompt
 
 
+@pytest.mark.parametrize("statement", [
+    "두 점의 속도는 다음 표와 같다.",
+    "속도는 $$\\begin{array}{c|c} A & B \\\\ 1 & 2 \\end{array}$$ 이다.",
+    "속도는 $\\begin{tabular}{cc} 1 & 2 \\end{tabular}$ 이다.",
+    "| 점 | 속도 |\n|---|---|\n| P | 1 |",
+    "| 점 | 속도 |\n|:---:|:---:|\n| P | 1 |",
+])
+def test_statement_presented_as_a_table_is_rejected(statement):
+    raw = json.dumps({"statement": statement, "solution": "풀이"}, ensure_ascii=False)
+    result = validate_candidate_question(raw)
+    assert result["status"] == "OUTPUT_ERROR"
+    assert result["error_code"] == "SCHEMA_INVALID"
+
+
+@pytest.mark.parametrize("statement", [
+    "점 $\\mathrm{P}$의 $x$좌표와 같다.",
+    "함수 $$f(x)=\\begin{cases} x & (x<0) \\\\ 2x & (x\\ge 0) \\end{cases}$$ 에 대하여 $|f(1)|$의 값을 구하시오.",
+])
+def test_cases_absolute_values_and_coordinates_are_not_tables(statement):
+    raw = json.dumps({"statement": statement, "solution": "풀이"}, ensure_ascii=False)
+    assert validate_candidate_question(raw)["status"] == "OK"
+
+
+def test_solution_may_use_a_table():
+    solution = "증감표는 다음과 같다. $$\\begin{array}{c|c} x & 1 \\\\ f'(x) & 0 \\end{array}$$"
+    raw = json.dumps({"statement": "새 문항", "solution": solution}, ensure_ascii=False)
+    assert validate_candidate_question(raw)["status"] == "OK"
+
+
+@pytest.mark.parametrize("phrase", ["표를 쓰지 않는다", "만족시킨다", "$x_A(t)$", "$v_1(t)", "\\begin{cases}",
+                                    "실수 전체의 집합에서", "주어를", "영점"])
+def test_generation_prompt_states_the_exam_phrasing(phrase):
+    assert phrase in load_prompt("generate_candidate")
+
+
+def test_design_prompt_keeps_tables_out_of_the_presentation():
+    assert "표로 제시하지 않는다" in load_prompt("design_candidates")
+
+
+def test_design_prompt_limits_labelled_conditions():
+    assert "많아야 하나" in load_prompt("design_candidates")
+
+
+@pytest.mark.parametrize("phrase", ["말할 때만", "조건 하나를 한 줄에"])
+def test_generation_prompt_keeps_labelled_conditions_rare_and_on_their_own_lines(phrase):
+    assert phrase in load_prompt("generate_candidate")
+
+
 def test_prompt_markers_must_exist(tmp_path, monkeypatch):
     import aleph.generation as generation
 

@@ -14,13 +14,20 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 
 from aleph.generation import Complete, check_generation_request, load_prompt
-from aleph.pipeline import generate_linked_questions
+from aleph.pipeline import (
+    MAX_CANDIDATES,
+    MAX_TOTAL_CANDIDATES,
+    generate_linked_questions,
+    generate_more_questions,
+)
 from aleph.validation import validate_solution_idea
 
 _VERDICTS = {"USE", "REVISE", "HOLD", "REJECT"}
 _STAGES = ["read", "extract", "validate", "generate", "review"]
 _POLL_SECONDS = 0.2
 _SERVER_FAILURE = "모델 호출에 실패했습니다. 잠시 뒤 다시 시도해 주세요."
+_BAD_COUNT = f"문항 수는 1개에서 {MAX_CANDIDATES}개 사이로 골라 주세요."
+_BAD_MORE = f"문항 수는 1개에서 {MAX_CANDIDATES}개 사이이고, 한 결과의 후보는 모두 {MAX_TOTAL_CANDIDATES}개까지입니다."
 
 
 @dataclass
@@ -90,18 +97,29 @@ def _result_record(job: _Job, output: dict) -> dict:
     }
 
 
-def _run(job: _Job, complete: Complete, results: dict, count: int, workers: int) -> None:
+def _count_ok(value) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= MAX_CANDIDATES
+
+
+def _request_of(result: dict) -> dict:
+    """The generation request a stored result came from."""
+    stored = result["request"]
+    return {"source_question": {"problem": {"text": stored["source"]["statement"]},
+                                "explanation": {"text": stored["source"]["solution"]}},
+            "intended_use": stored["intended_use"], "target_level": stored["target_level"],
+            "curriculum_scope": stored["curriculum_scope"]}
+
+
+def _run(job: _Job, generate, keep) -> None:
+    """generate() returns the pipeline output; keep(output) stores it and returns its result id."""
     try:
-        output = generate_linked_questions(job.request, _reporting(complete, job), count=count,
-                                           workers=workers)
+        output = generate()
     except Exception:
         event = {"stage": "error", "error": {
             "status": "SERVER_ERROR", "error_code": "MODEL_CALL_FAILED", "reason": _SERVER_FAILURE}}
     else:
         if output["status"] == "OK":
-            record = _result_record(job, output)
-            results[record["id"]] = record
-            event = {"stage": "done", "result_id": record["id"],
+            event = {"stage": "done", "result_id": keep(output),
                      "solution_idea": output["solution_idea"]}
         else:
             event = {"stage": "error", "error": {
@@ -148,11 +166,57 @@ def create_app(complete: Complete, *, count: int = 3, workers: int = 3) -> FastA
             message = "이미지 입력은 아직 지원하지 않습니다. 수식·텍스트로 넣어 주세요." \
                 if "image" in str(exc) else "원문, 해설, 교육과정 범위를 모두 넣어 주세요."
             raise HTTPException(422, message) from exc
+        amount = request.get("count", count)
+        if not _count_ok(amount):
+            raise HTTPException(422, _BAD_COUNT)
         job_id = f"job_{uuid.uuid4().hex[:12]}"
-        job = _Job(request, [{"stage": "read", "source_statement": source["problem"]}])
+        job = _Job(request, [{"stage": "read", "source_statement": source["problem"],
+                              "candidates": amount}])
         jobs[job_id] = job
-        threading.Thread(target=_run, args=(job, complete, results, count, workers),
-                         daemon=True).start()
+
+        def generate() -> dict:
+            return generate_linked_questions(request, _reporting(complete, job), count=amount,
+                                             workers=workers)
+
+        def keep(output: dict) -> str:
+            record = _result_record(job, output)
+            results[record["id"]] = record
+            return record["id"]
+
+        threading.Thread(target=_run, args=(job, generate, keep), daemon=True).start()
+        return {"jobId": job_id}
+
+    @app.post("/api/results/{result_id}/more")
+    def create_more_job(result_id: str, body: dict = Body(...)) -> dict:
+        """More candidates on the same SolutionIdea; they join the same result."""
+        result = results.get(result_id)
+        if result is None:
+            raise HTTPException(404, "검토 결과를 찾을 수 없습니다.")
+        amount = body.get("count")
+        if not _count_ok(amount) or len(result["candidates"]) + amount > MAX_TOTAL_CANDIDATES:
+            raise HTTPException(422, _BAD_MORE)
+        request, idea = _request_of(result), result["solution_idea"]
+        existing = [candidate["statement"] for candidate in result["candidates"]]
+        job_id = f"job_{uuid.uuid4().hex[:12]}"
+        job = _Job(request, [{"stage": "read", "source_statement": result["request"]["source"]["statement"],
+                              "candidates": amount, "back_to": result_id},
+                             {"stage": "extract", "solution_idea": idea}], "extract")
+        jobs[job_id] = job
+
+        def generate() -> dict:
+            return generate_more_questions(request, idea, existing, _reporting(complete, job),
+                                           count=amount, workers=workers)
+
+        def keep(output: dict) -> str:
+            # a candidate can be dropped in review, so the next id comes from the largest one
+            number = max(int(candidate["id"][1:]) for candidate in result["candidates"])
+            for candidate in output["candidates"]:
+                if candidate["review_result"]:
+                    number += 1
+                    result["candidates"].append({**_shown(candidate), "id": f"p{number}"})
+            return result_id
+
+        threading.Thread(target=_run, args=(job, generate, keep), daemon=True).start()
         return {"jobId": job_id}
 
     @app.get("/api/jobs/{job_id}/events")
@@ -177,8 +241,6 @@ def create_app(complete: Complete, *, count: int = 3, workers: int = 3) -> FastA
         if verdict not in _VERDICTS or not isinstance(reason, str) or not reason.strip():
             raise HTTPException(422, "판정과 이유를 넣어 주세요.")
         ai_review = candidate["ai_review_result"]
-        if candidate["review_result"]["reviewer_type"] != "AI":
-            raise HTTPException(409, "이미 사람이 판정한 후보입니다.")
         if verdict == "USE" and (ai_review["validity_issue"] or ai_review["curriculum_issue"]):
             raise HTTPException(409, "결함이나 교육과정 이탈이 표시된 후보는 사용 승인할 수 없습니다.")
         candidate["review_result"] = {

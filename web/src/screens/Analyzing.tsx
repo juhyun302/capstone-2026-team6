@@ -119,6 +119,8 @@ export function Analyzing() {
   const ss = Math.floor((elapsed % 60000) / 1000)
   const busy = !error && (stage === 'generate' || stage === 'review')
   const failedName = error ? STAGE_NAME[failedStage(error, failedAt)] : null
+  const count = marks.find((m) => m.event.candidates)?.event.candidates ?? 3
+  const backTo = marks.find((m) => m.event.back_to)?.event.back_to
 
   return (
     <div className="screen">
@@ -139,7 +141,7 @@ export function Analyzing() {
         </div>
 
         {/* after a failure the graph keeps the stage it failed in, so the stages before it stay done */}
-        <NodeGraph stage={error && failedAt ? failedAt : stage} idea={idea} error={error} failedAt={failedAt} durations={durations} />
+        <NodeGraph key={count} count={count} stage={error && failedAt ? failedAt : stage} idea={idea} error={error} failedAt={failedAt} durations={durations} />
         {!error && <JobProgress marks={marks} running={running} now={now} />}
 
         <div className="job">
@@ -147,7 +149,7 @@ export function Analyzing() {
             <span className="job__ring" aria-hidden="true" />
             <span className="job__sheen" aria-hidden="true" />
             <h2>원문</h2>
-            <MathText text={statement} className="math--statement" />
+            <MathText statement text={statement} className="math--statement" />
           </aside>
 
           <div className="job__found">
@@ -172,9 +174,15 @@ export function Analyzing() {
                   </ul>
                 )}
                 <div className="job__error-actions">
-                  <Link to="/new" state={error.error_code === 'SCOPE_CONFLICT' ? { ...lastDraft(), scope: '' } : lastDraft()} className="btn btn--sm">
-                    {error.error_code === 'SCOPE_CONFLICT' ? '범위 다시 고르기' : '원문 다시 올리기'}
-                  </Link>
+                  {backTo ? (
+                    <Link to={`/results/${backTo}`} className="btn btn--sm">
+                      결과로 돌아가기
+                    </Link>
+                  ) : (
+                    <Link to="/new" state={error.error_code === 'SCOPE_CONFLICT' ? { ...lastDraft(), scope: '' } : lastDraft()} className="btn btn--sm">
+                      {error.error_code === 'SCOPE_CONFLICT' ? '범위 다시 고르기' : '원문 다시 올리기'}
+                    </Link>
+                  )}
                   <Link to="/" className="btn btn--secondary btn--sm">
                     처음으로
                   </Link>

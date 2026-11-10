@@ -1,4 +1,4 @@
-// The real API in src/aleph/server.py. Same four functions as ./mock.ts.
+// The real API in src/aleph/server.py. Same functions as ./mock.ts.
 
 import type { GenerationRequest, GenerationResult, JobEvent, ReviewResult, SourcePart, Verdict } from './types'
 
@@ -18,6 +18,15 @@ export async function createJob(req: GenerationRequest): Promise<{ jobId: string
       ...req,
       source_question: { problem: part(req.source_question.problem), explanation: part(req.source_question.explanation) },
     }),
+  })
+  return parsed(response)
+}
+
+export async function createMoreJob(resultId: string, count: number): Promise<{ jobId: string }> {
+  const response = await fetch(`/api/results/${resultId}/more`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ count }),
   })
   return parsed(response)
 }

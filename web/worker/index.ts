@@ -46,8 +46,8 @@ const PROMPTS: Record<PromptName, string> = {
 const MAX_INPUT = 200_000
 const HEARTBEAT_MS = 10_000
 const WRONG_PASSWORD_DELAY_MS = 1_000
-/** Model calls in one request: extract, design, and generate, solve, review for three candidates. */
-const CALLS_PER_REQUEST = 11
+/** Model calls in the largest request: extract, design, and generate, solve, review for five candidates. */
+const CALLS_PER_REQUEST = 17
 
 /** One counter for the whole site; calls are counted per day in Korean time. */
 export class Usage extends DurableObject {

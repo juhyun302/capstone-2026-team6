@@ -7,7 +7,7 @@ import { api, apiMode } from '../api'
 import { rememberDraft, type Draft } from '../api/draft'
 import { DEFAULT_MODEL, accessMode, getSettings, setSettings, type AccessSettings } from '../api/settings'
 import { SAMPLE_SOURCE } from '../api/fixtures'
-import { CURRICULUM_OPTIONS, DEFAULT_INTENDED_USE, DEFAULT_TARGET_LEVEL } from '../api/config'
+import { CANDIDATE_COUNTS, CURRICULUM_OPTIONS, DEFAULT_CANDIDATE_COUNT, DEFAULT_INTENDED_USE, DEFAULT_TARGET_LEVEL } from '../api/config'
 import type { GenerationRequest } from '../api/types'
 
 type Mode = 'text' | 'image'
@@ -28,7 +28,7 @@ const WORDS = accessMode === 'password'
       check: '접속 비밀번호가 있습니다',
       remember: '이 브라우저에 비밀번호 기억하기',
       missing: '접속 비밀번호를 넣어 주세요. 비밀번호가 있어야 팀 서버로 모델을 부를 수 있습니다.',
-      note: 'OpenAI 키는 팀 서버에만 있고 이 화면으로 오지 않습니다. 기억하기를 끄면 탭을 닫거나 새로 고칠 때 지워집니다. 요청 한 번에 모델을 11번쯤 부르고, 비용은 팀 계정에 청구됩니다.',
+      note: 'OpenAI 키는 팀 서버에만 있고 이 화면으로 오지 않습니다. 기억하기를 끄면 탭을 닫거나 새로 고칠 때 지워집니다. 요청 한 번에 모델을 (문항 수 × 3 + 2)번쯤 부르고, 비용은 팀 계정에 청구됩니다.',
     }
   : {
       title: 'OpenAI API 키',
@@ -36,7 +36,7 @@ const WORDS = accessMode === 'password'
       check: 'OpenAI API 키가 있습니다',
       remember: '이 브라우저에 키 기억하기',
       missing: 'OpenAI API 키를 넣어 주세요. 키가 있어야 이 브라우저에서 모델을 부를 수 있습니다.',
-      note: '키는 이 브라우저에서 OpenAI로만 보냅니다. 기억하기를 끄면 탭을 닫거나 새로 고칠 때 지워집니다. 요청 한 번에 모델을 11번쯤 부르고, 비용은 키 주인 계정에 청구됩니다.',
+      note: '키는 이 브라우저에서 OpenAI로만 보냅니다. 기억하기를 끄면 탭을 닫거나 새로 고칠 때 지워집니다. 요청 한 번에 모델을 (문항 수 × 3 + 2)번쯤 부르고, 비용은 키 주인 계정에 청구됩니다.',
     }
 
 const filled = (text = ''): PartState => ({ mode: 'text', text, file: null, preview: null })
@@ -48,6 +48,7 @@ export function NewRequest() {
   const [problem, setProblem] = useState<PartState>(() => filled(draft?.statement))
   const [explanation, setExplanation] = useState<PartState>(() => filled(draft?.solution))
   const [scope, setScope] = useState(draft?.scope ?? '')
+  const [count, setCount] = useState<number>(draft?.count ?? DEFAULT_CANDIDATE_COUNT)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [touched, setTouched] = useState(false)
@@ -93,7 +94,7 @@ export function NewRequest() {
     }
     setError(null)
     setSubmitting(true)
-    rememberDraft({ statement: problem.text, solution: explanation.text, scope })
+    rememberDraft({ statement: problem.text, solution: explanation.text, scope, count })
     if (needsKey) setSettings({ ...access, secret: access.secret.trim(), model: access.model.trim() || DEFAULT_MODEL })
     const req: GenerationRequest = {
       source_question: {
@@ -103,6 +104,7 @@ export function NewRequest() {
       intended_use: DEFAULT_INTENDED_USE,
       target_level: DEFAULT_TARGET_LEVEL,
       curriculum_scope: scope,
+      count,
     }
     try {
       const { jobId } = await api.createJob(req)
@@ -218,6 +220,18 @@ export function NewRequest() {
                 ))}
               </select>
               <span className="field__hint">문항의 과목과 맞아야 합니다. 맞지 않으면 후보를 만들지 못합니다.</span>
+            </label>
+
+            <label className="field">
+              <span className="field__label">만들 문항 수</span>
+              <select name="candidate_count" className="select" value={count} onChange={(e) => setCount(Number(e.target.value))}>
+                {CANDIDATE_COUNTS.map((option) => (
+                  <option key={option} value={option}>
+                    {option}개
+                  </option>
+                ))}
+              </select>
+              <span className="field__hint">많을수록 오래 걸리고 모델을 더 많이 부릅니다.</span>
             </label>
 
             <div className="submit-row">
@@ -360,7 +374,7 @@ function SourcePartEditor({
               {hint}
             </span>
             <div className="preview" data-empty={!previewText} aria-live="polite" aria-label="수식 미리보기">
-              {previewText ? <MathText text={previewText} /> : '입력하면 여기에 렌더링된 수식이 보입니다.'}
+              {previewText ? <MathText statement text={previewText} /> : '입력하면 여기에 렌더링된 수식이 보입니다.'}
             </div>
           </div>
         ) : (

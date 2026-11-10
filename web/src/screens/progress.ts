@@ -7,7 +7,10 @@ import type { CallKind, JobEvent, JobStage } from '../api/types'
 /** Seconds per step in real runs (2026-11-07, gpt-6-astra, 3 candidates). */
 export const EXPECTED: Record<CallKind, number> = { extract: 8, design: 125, generate: 14, solve: 12, review: 18 }
 const KINDS = Object.keys(EXPECTED) as CallKind[]
-const TOTAL = KINDS.reduce((sum, kind) => sum + EXPECTED[kind], 0)
+/** Candidates run three at a time, so more than three means another round of a step. */
+const WORKERS = 3
+/** One design call covers every plan: 75 s for one, about 125 s for three, about 170 s for five (2026-11-10). */
+const designSeconds = (candidates: number) => 50 + 25 * candidates
 
 /** Without call events (server mode) each stage covers the steps inside it. */
 const STAGE_KINDS: Partial<Record<JobStage, CallKind[]>> = { extract: ['extract'], generate: ['design', 'generate'], review: ['solve', 'review'] }
@@ -60,11 +63,14 @@ function byCalls(marks: Mark[], now: number, candidates: number) {
   let left = 0
   let current: CallKind | null = null
   for (const kind of KINDS) {
-    const needed = kind === 'extract' || kind === 'design' ? 1 : candidates
+    const single = kind === 'extract' || kind === 'design'
+    const needed = single ? 1 : candidates
+    const oneCall = kind === 'design' ? designSeconds(candidates) : EXPECTED[kind]
+    const seconds = oneCall * (single ? 1 : Math.ceil(candidates / WORKERS))
     const starts = running.get(kind) ?? []
-    const share = Math.min(1, ((done.get(kind) ?? 0) + starts.reduce((sum, at) => sum + creep((now - at) / 1000, EXPECTED[kind]), 0)) / needed)
-    worth += EXPECTED[kind] * share
-    left += EXPECTED[kind] * (1 - share)
+    const share = Math.min(1, ((done.get(kind) ?? 0) + starts.reduce((sum, at) => sum + creep((now - at) / 1000, oneCall), 0)) / needed)
+    worth += seconds * share
+    left += seconds * (1 - share)
     if (starts.length) current = kind
   }
   const finished = current ? Math.min(done.get(current) ?? 0, candidates) : 0
@@ -100,6 +106,6 @@ export function estimate(marks: Mark[], now: number): Progress {
   const candidates = marks.find((m) => m.event.candidates)?.event.candidates ?? 3
   const { worth, left, label } = marks.some((m) => m.event.call) ? byCalls(marks, now, candidates) : byStages(marks, now)
   // a retry or a slow model can outrun the estimate; never claim more than 99% before done
-  const fraction = Math.min(0.99, worth / TOTAL)
+  const fraction = Math.min(0.99, worth / (worth + left))
   return { fraction, label, elapsedSeconds, remainingSeconds: left >= 5 ? Math.round(left) : null }
 }

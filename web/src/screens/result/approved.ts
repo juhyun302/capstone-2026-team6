@@ -1,5 +1,5 @@
 import type { CandidateQuestion, GenerationResult } from '../../api/types'
-import { escapeHtml, mathHtml } from '../../components/Math'
+import { escapeHtml, mathHtml, statementHtml } from '../../components/Math'
 
 // What leaves the app after a person approves: LaTeX text to paste, or one HTML file to keep.
 
@@ -33,13 +33,17 @@ h2 { margin: 0 0 12px; font-size: 1.1rem; }
 h3 { margin: 20px 0 8px; color: #5b6575; font-size: 0.95rem; }
 p { margin: 0; white-space: pre-wrap; overflow-wrap: break-word; }
 math { font-size: 1.1em; }
+.math-line { display: block; }
+.math-conds { display: block; margin: 12px 0; padding: 10px 14px; border: 1px solid #5b6575; }
+.math-cond { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 6px; }
 @media print { main { max-width: none; padding: 0; } section { break-inside: avoid; } }
 `
 
 /** A complete page with no outside files: formulas are MathML, which browsers draw themselves. */
 export function approvedFile(result: GenerationResult, approved: Approved[], now: Date) {
   const paragraph = (text: string) => `<p>${mathHtml(text, 'mathml')}</p>`
-  const items = approved.map(({ number, candidate }) => `<section><h2>후보 ${number}</h2>${paragraph(candidate.statement)}<h3>풀이</h3>${paragraph(candidate.solution)}</section>`)
+  const question = (text: string) => `<p>${statementHtml(text, 'mathml')}</p>`
+  const items = approved.map(({ number, candidate }) => `<section><h2>후보 ${number}</h2>${question(candidate.statement)}<h3>풀이</h3>${paragraph(candidate.solution)}</section>`)
   const meta = `${now.toLocaleString('ko-KR')} 저장 · 교육과정 범위 ${escapeHtml(result.request.curriculum_scope)} · 사용 승인 ${approved.length}개`
   return `<!doctype html>
 <html lang="ko">
@@ -54,7 +58,7 @@ export function approvedFile(result: GenerationResult, approved: Approved[], now
 <h1>Aleph 승인 문항</h1>
 <p class="meta">${meta}</p>
 ${items.join('\n')}
-<section><h2>원문 문항</h2>${paragraph(result.request.source.statement)}</section>
+<section><h2>원문 문항</h2>${question(result.request.source.statement)}</section>
 </main>
 </body>
 </html>
