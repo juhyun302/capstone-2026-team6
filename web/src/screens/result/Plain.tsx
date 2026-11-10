@@ -70,8 +70,8 @@ function Candidate({ index, candidate, busy, onDecide, onUndo }: { index: number
           <ChevronDown aria-hidden="true" />
         </button>
         {review.reviewer_type !== 'AI' && (
-          <button type="button" className="cand__undo" onClick={onUndo} disabled={busy !== null} aria-label="내 판정 취소" title="내 판정을 취소하고 AI 잠정 판정으로 되돌립니다">
-            Undo
+          <button type="button" className="disclose-btn" onClick={onUndo} disabled={busy !== null} title="내 판정을 취소하고 AI 잠정 판정으로 되돌립니다">
+            재검토하기
           </button>
         )}
       </div>
