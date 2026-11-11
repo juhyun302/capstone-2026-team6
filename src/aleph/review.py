@@ -56,10 +56,11 @@ def validate_blind_solution(raw_output: str) -> dict:
     return {"status": "OK", "error_code": None, "reason": None, "blind_solution": blind}
 
 
-def validate_review_output(raw_output: str, *, blind_clean: bool) -> dict:
+def validate_review_output(raw_output: str, *, blind_clean: bool,
+                           copy_suspected: bool = False) -> dict:
     """Reject a USE that contradicts the reported issues; never rewrite the verdict."""
-    if not isinstance(blind_clean, bool):
-        raise TypeError("blind_clean must be a boolean")
+    if not isinstance(blind_clean, bool) or not isinstance(copy_suspected, bool):
+        raise TypeError("blind_clean and copy_suspected must be booleans")
     try:
         review = _strict_json(raw_output)
     except ValueError:
@@ -72,7 +73,7 @@ def validate_review_output(raw_output: str, *, blind_clean: bool) -> dict:
         return _error("EMPTY_TEXT", "공백만 있는 문자열을 검토 이유로 사용할 수 없습니다.", "review_output")
 
     blocked = (review["validity_issue"] or review["curriculum_issue"]
-               or not review["transferable"] or not blind_clean)
+               or not review["transferable"] or not blind_clean or copy_suspected)
     if review["verdict"] == "USE" and blocked:
         return _error("VERDICT_CONFLICT", "확인된 문제가 있는 후보를 USE로 판정할 수 없습니다.",
                       "review_output")
@@ -100,7 +101,8 @@ def _failed(result: dict, solution_idea) -> dict:
             "reason": result["reason"], "solution_idea": solution_idea, "review_result": None}
 
 
-def review_candidate(request: dict, complete: Complete, *, solution_idea: dict | None = None) -> dict:
+def review_candidate(request: dict, complete: Complete, *, solution_idea: dict | None = None,
+                     surface_check: dict | None = None) -> dict:
     """Pass a confirmed idea to avoid a second extraction of the same source."""
     scope = request.get("curriculum_scope")
     if not isinstance(scope, str) or not scope.strip():
@@ -125,11 +127,16 @@ def review_candidate(request: dict, complete: Complete, *, solution_idea: dict |
 
     blind = solved["blind_solution"]
     blind_clean = blind["status"] == "solved" and not blind["issues"]
-    review_user = json.dumps({"source_question": source, "solution_idea": idea,
-                              "candidate_question": candidate, "blind_solution": blind,
-                              "curriculum_scope": scope}, ensure_ascii=False)
+    review_input = {"source_question": source, "solution_idea": idea,
+                    "candidate_question": candidate, "blind_solution": blind,
+                    "curriculum_scope": scope}
+    if surface_check is not None:
+        review_input["surface_check"] = surface_check
+    copy_suspected = bool(surface_check and surface_check.get("copy_suspected"))
+    review_user = json.dumps(review_input, ensure_ascii=False)
     reviewed = _first_valid(complete, load_prompt("review_candidate"), review_user,
-                            partial(validate_review_output, blind_clean=blind_clean))
+                            partial(validate_review_output, blind_clean=blind_clean,
+                                    copy_suspected=copy_suspected))
     if reviewed["status"] != "OK":
         return _failed(reviewed, idea)
 

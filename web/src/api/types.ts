@@ -24,6 +24,8 @@ export interface GenerationRequest {
   intended_use: IntendedUse
   target_level: TargetLevel
   curriculum_scope: string
+  /** How many candidates to make. */
+  count: number
 }
 
 export interface SolutionIdea {
@@ -57,6 +59,10 @@ export interface CandidateQuestion {
   review_result: ReviewResult
   /** The AI's verdict, kept after a human decides. */
   ai_review_result?: ReviewResult
+  /** What the design stage changed from the source and the judgment it added. */
+  plan?: { changed_axes: string[]; added_judgment: string }
+  /** String similarity to the source and to earlier candidates. */
+  surface_check?: { source_similarity: number; max_sibling_similarity: number; copy_suspected: boolean }
 }
 
 export interface SourceSummary {
@@ -69,7 +75,7 @@ export interface SourceSummary {
 export interface GenerationResult {
   id: string
   created_at: string
-  request: Omit<GenerationRequest, 'source_question'> & { source: SourceSummary }
+  request: Omit<GenerationRequest, 'source_question' | 'count'> & { source: SourceSummary }
   solution_idea: SolutionIdea
   candidates: CandidateQuestion[]
 }
@@ -83,14 +89,25 @@ export interface QuestionError {
 }
 
 /** Pipeline stages the job streams while it runs. */
-export type JobStage = 'read' | 'extract' | 'generate' | 'review' | 'done' | 'error'
+export type JobStage = 'read' | 'extract' | 'validate' | 'generate' | 'review' | 'done' | 'error'
+
+/** The five kinds of model call one request makes. */
+export type CallKind = 'extract' | 'design' | 'generate' | 'solve' | 'review'
 
 export interface JobEvent {
   stage: JobStage
+  /** When the event happened (ms since epoch); the client stamps arrival time when absent. */
+  at?: number
   /** The problem text the user sent, shown while the job runs. */
   source_statement?: string
+  /** How many candidates this job makes; sent with the first event. */
+  candidates?: number
+  /** Set on a job that adds candidates to an existing result: that result's id. */
+  back_to?: string
   /** Filled once the parser has an idea; partial while it streams. */
   solution_idea?: Partial<SolutionIdea>
+  /** One model call starting or ending. Only the browser build sends these; progress falls back to stages without them. */
+  call?: { kind: CallKind; phase: 'start' | 'end' }
   result_id?: string
   error?: QuestionError
 }

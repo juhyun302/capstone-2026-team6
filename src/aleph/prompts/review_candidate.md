@@ -2,7 +2,7 @@
 
 | 항목 | 값 |
 |---|---|
-| `prompt_version` | 3 |
+| `prompt_version` | 4 |
 | 짝이 되는 스키마 | `src/aleph/schemas/review_output.schema.json` |
 | 입력 | `source_question`, `solution_idea`, `candidate_question`, `blind_solution`, `curriculum_scope`를 담은 JSON |
 | 전송 범위 | `src/aleph/review.py`가 아래 전송부의 시작·끝 마커 사이만 시스템 프롬프트로 읽는다. |
@@ -27,17 +27,20 @@ validity_issue:
 
 curriculum_issue:
 - 풀이에 curriculum_scope 밖의 개념이나 공식이 꼭 필요하면 true다.
+- 예를 들어 수학Ⅱ 범위에서 적분 구간의 끝이 $2t$ 같은 식인 넓이 함수를 미분하면 합성함수의 미분이 필요하므로 true다.
 
 transferable:
 - solution_idea의 두 요소가 후보 풀이에서 mechanism대로 이어져 실제로 쓰이는지 확인한다. 한 요소만으로 답이 나오거나 다른 쉬운 풀이로 두 요소를 피할 수 있으면 false다.
 - 원문과 후보의 풀이 절차를 처음부터 끝까지 나란히 비교한다. 대상, 조건 구조, 질문 목표, 제시 방식, 풀이 구성을 본다.
 - 숫자, 문자, 문장 순서, 함수 이름의 변화는 변화로 세지 않는다. 변수 치환, 상수 변경, 좌표 이동, 삼각함수의 평행이동처럼 원문으로 되돌아가는 변화도 세지 않는다.
+- 원문의 상수(극값의 위치, 주어진 점 등)를 변수로 바꾸기만 했으면 false다.
+- 입력에 surface_check가 있고 copy_suspected가 true면 원문이나 다른 후보와 문장이 거의 같다는 뜻이다. 이때는 false다.
 - 두 요소가 쓰이는 핵심 단계를 원문과 나란히 놓는다. 핵심 단계의 절차가 같은 순서로 같으면 false다. 문장이 달라도 false다.
 - 마지막에 덧붙인 계산, 값 대입, 공식 적용, 구한 값의 복원은 새로운 판단으로 세지 않는다. 핵심 단계가 같고 마무리만 다르면 false다.
 - 위를 모두 통과하고 두 요소가 쓰이는 핵심 단계 안에 원문 풀이에 없던 판단이 실제로 더해졌으면 true다. 경우를 나눠야 하는 조건, 요소를 적용하기 전에 먼저 가려야 하는 판단이 그 예다.
 
 verdict:
-- USE: validity_issue와 curriculum_issue가 false이고 transferable이 true이며 blind_solution이 solved이고 issues가 없을 때만 쓴다.
+- USE: validity_issue와 curriculum_issue가 false이고 transferable이 true이며 blind_solution이 solved이고 issues가 없을 때만 쓴다. surface_check의 copy_suspected가 true면 쓰지 않는다.
 - REVISE: 조건이나 풀이를 고치면 쓸 수 있다.
 - HOLD: 위 항목은 통과했지만 판단할 근거가 부족하거나 지금 쓰기 어렵다.
 - REJECT: 고쳐도 두 요소의 메커니즘을 살리기 어렵다.
@@ -66,6 +69,7 @@ reason:
 - `curriculum_issue=true`
 - `transferable=false`
 - 독립 풀이의 `status`가 `solved`가 아니거나 `issues`가 있음
+- 유사도 검사의 `copy_suspected=true`
 
 수능 정답 형식은 코드가 판정하지 않는다. `candidate_question`에 정답 칸이 따로 없어서다.
 
@@ -78,3 +82,4 @@ reason:
 - v1 (초안): 결함, 교육과정, 메커니즘 응용, 잠정 판정을 쓰는 전송부를 작성했다.
 - v2 (초안): 2026-11-06 시험 실행에서 reason이 중국어로 나와 언어 규칙을 추가했다.
 - v3 (초안): 2026-11-06 윤결이 핵심 풀이 네 단계가 같고 마지막 계산만 다른 후보를 연계로 보기 어렵다고 판단했다. 마무리 계산을 새로운 판단으로 세지 않도록 `transferable` 기준을 강화했다.
+- v4 (초안): 2026-11-07 전문가 판정에서 AI가 놓친 두 경우(수학Ⅱ의 합성함수 미분, 원문 상수의 변수화)를 규칙에 넣고, 유사도 검사 결과(`surface_check`)를 입력으로 받게 했다.

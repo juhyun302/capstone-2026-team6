@@ -9,7 +9,7 @@ import type { GenerationRequest, GenerationResult, JobEvent, QuestionError, Revi
 const STORE_KEY = 'aleph.mock.v1'
 
 interface Store {
-  jobs: Record<string, { request: SerializedRequest; result_id?: string; error?: QuestionError }>
+  jobs: Record<string, { request?: SerializedRequest; more?: { result_id: string; count: number }; result_id?: string; error?: QuestionError }>
   results: Record<string, GenerationResult>
 }
 
@@ -51,6 +51,7 @@ function serialize(req: GenerationRequest): SerializedRequest {
     intended_use: req.intended_use,
     target_level: req.target_level,
     curriculum_scope: req.curriculum_scope,
+    count: req.count,
     source_question: { problem: part(req.source_question.problem), explanation: part(req.source_question.explanation) },
   }
 }
@@ -63,6 +64,22 @@ export async function createJob(req: GenerationRequest): Promise<{ jobId: string
   save(store)
   await delay(240)
   return { jobId }
+}
+
+/** Adds samples to an existing result, as the real "more" job would. */
+export async function createMoreJob(resultId: string, count: number): Promise<{ jobId: string }> {
+  const store = load()
+  if (!store.results[resultId]) throw new Error('후보를 찾을 수 없습니다.')
+  const jobId = id('job')
+  store.jobs[jobId] = { more: { result_id: resultId, count } }
+  save(store)
+  await delay(240)
+  return { jobId }
+}
+
+const samples = (count: number, offset: number) => {
+  const pool = sampleResult('tmp').candidates
+  return Array.from({ length: count }, (_, i) => ({ ...pool[i % pool.length], id: `c${offset + i + 1}` }))
 }
 
 const sleep = (ms: number, signal?: AbortSignal) =>
@@ -96,13 +113,29 @@ export async function* jobEvents(jobId: string, signal?: AbortSignal): AsyncGene
     yield { stage: 'error', error: job.error }
     return
   }
+  if (job.more) {
+    const target = store.results[job.more.result_id]
+    yield { stage: 'read', source_statement: target.request.source.statement, candidates: job.more.count, back_to: job.more.result_id }
+    yield { stage: 'extract', solution_idea: target.solution_idea }
+    await sleep(500, signal)
+    yield { stage: 'generate' }
+    await sleep(1600, signal)
+    yield { stage: 'review' }
+    await sleep(1200, signal)
+    target.candidates.push(...samples(job.more.count, target.candidates.length))
+    job.result_id = job.more.result_id
+    save(store)
+    yield { stage: 'done', result_id: job.more.result_id }
+    return
+  }
+  if (!job.request) return
 
   const expl = job.request.source_question.explanation
   const prob = job.request.source_question.problem
   const unreadable = [prob.imageName, expl.imageName].some((n) => n && /blur|흐림|low/i.test(n))
   const thin = !expl.imageName && (expl.text?.length ?? 0) > 0 && (expl.text?.length ?? 0) < 40
 
-  yield { stage: 'read' }
+  yield { stage: 'read', candidates: job.request.count }
   await sleep(900, signal)
 
   if (unreadable) {
@@ -140,10 +173,12 @@ export async function* jobEvents(jobId: string, signal?: AbortSignal): AsyncGene
   await sleep(600, signal)
   yield { stage: 'extract', solution_idea: idea }
   await sleep(500, signal)
+  yield { stage: 'validate', solution_idea: idea }
+  await sleep(700, signal)
   yield { stage: 'generate', solution_idea: idea }
-  await sleep(1400, signal)
+  await sleep(2600, signal)
   yield { stage: 'review', solution_idea: idea }
-  await sleep(1100, signal)
+  await sleep(1800, signal)
 
   const resultId = id('res')
   const result = sampleResult(resultId, {
@@ -157,6 +192,7 @@ export async function* jobEvents(jobId: string, signal?: AbortSignal): AsyncGene
       solution: expl.text && expl.text.length > 40 ? expl.text : SAMPLE_SOURCE.solution,
     },
   })
+  result.candidates = samples(job.request.count, 0)
   store.results[resultId] = result
   job.result_id = resultId
   save(store)
@@ -177,6 +213,7 @@ export async function recordHumanReview(resultId: string, candidateId: string, v
   const result = store.results[resultId]
   const candidate = result?.candidates.find((c) => c.id === candidateId)
   if (!result || !candidate) throw new Error('후보를 찾을 수 없습니다.')
+  candidate.ai_review_result ??= candidate.review_result
   const next: ReviewResult = {
     ...candidate.review_result,
     verdict,
@@ -187,6 +224,17 @@ export async function recordHumanReview(resultId: string, candidateId: string, v
   candidate.review_result = next
   save(store)
   return next
+}
+
+/** Cancel a person's decision; the candidate is back to the AI's provisional verdict. */
+export async function undoHumanReview(resultId: string, candidateId: string): Promise<ReviewResult> {
+  await delay(200)
+  const store = load()
+  const candidate = store.results[resultId]?.candidates.find((c) => c.id === candidateId)
+  if (!candidate) throw new Error('후보를 찾을 수 없습니다.')
+  candidate.review_result = candidate.ai_review_result ?? candidate.review_result
+  save(store)
+  return candidate.review_result
 }
 
 export function resetMock() {

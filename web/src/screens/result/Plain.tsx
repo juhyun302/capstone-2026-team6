@@ -5,13 +5,22 @@ import type { CandidateQuestion, GenerationResult, Verdict } from '../../api/typ
 import { MathText } from '../../components/Math'
 import { Seal } from '../../components/Seal'
 import { VERDICT_LABEL } from '../../components/Verdict'
+import { ResultBar } from './ResultBar'
 import { approvalSentence, checksSentence, DecideRow, ResultHead, sealNote, SourceDialog, useDecisions } from './shared'
 
 // The plain view: candidates in two columns, solution and reasons folded.
 
+const AXIS_LABEL: Record<string, string> = {
+  object: '대상',
+  condition_form: '조건 구조',
+  target: '묻는 것',
+  representation: '제시 방식',
+  solution_route: '풀이 구성',
+}
+
 export function PlainView({ result }: { result: GenerationResult }) {
   const reduce = useReducedMotion()
-  const { candidates, decide, busy } = useDecisions(result)
+  const { candidates, decide, undo, busy } = useDecisions(result)
   const dialog = useRef<HTMLDialogElement>(null)
   return (
     <article className="sheet">
@@ -20,10 +29,11 @@ export function PlainView({ result }: { result: GenerationResult }) {
       <section className="sheet__candidates" aria-label="후보 문항">
         {candidates.map((c, i) => (
           <motion.div key={c.id} initial={reduce ? false : { opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.42, delay: 0.08 * i, ease: [0.23, 1, 0.32, 1] }}>
-            <Candidate index={i} candidate={c} busy={busy} onDecide={(v) => decide(c, v)} />
+            <Candidate index={i} candidate={c} busy={busy} onDecide={(v) => decide(c, v)} onUndo={() => undo(c)} />
           </motion.div>
         ))}
       </section>
+      <ResultBar result={result} candidates={candidates} />
     </article>
   )
 }
@@ -38,7 +48,7 @@ function Fold({ id, open, children }: { id: string; open: boolean; children: Rea
   )
 }
 
-function Candidate({ index, candidate, busy, onDecide }: { index: number; candidate: CandidateQuestion; busy: string | null; onDecide: (v: Verdict) => void }) {
+function Candidate({ index, candidate, busy, onDecide, onUndo }: { index: number; candidate: CandidateQuestion; busy: string | null; onDecide: (v: Verdict) => void; onUndo: () => void }) {
   const [openSolution, setOpenSolution] = useState(false)
   const [openReview, setOpenReview] = useState(false)
   const review = candidate.review_result
@@ -49,7 +59,7 @@ function Candidate({ index, candidate, busy, onDecide }: { index: number; candid
         <Seal verdict={review.verdict} note={sealNote(review)} provisional={review.reviewer_type === 'AI'} replayKey={`${review.reviewer_type}-${review.verdict}`} className="cand__seal" />
       </div>
       <p className="cand__verdict-note">{approvalSentence(review)}</p>
-      <MathText text={candidate.statement} className="sheet__statement" />
+      <MathText statement text={candidate.statement} className="sheet__statement" />
       <div className="cand__tools">
         <button type="button" className="disclose-btn" aria-expanded={openSolution} aria-controls={`sol-${candidate.id}`} onClick={() => setOpenSolution((o) => !o)}>
           {openSolution ? '풀이 닫기' : '풀이 보기'}
@@ -59,6 +69,11 @@ function Candidate({ index, candidate, busy, onDecide }: { index: number; candid
           {openReview ? '검토 근거 닫기' : '검토 근거 보기'}
           <ChevronDown aria-hidden="true" />
         </button>
+        {review.reviewer_type !== 'AI' && (
+          <button type="button" className="disclose-btn" onClick={onUndo} disabled={busy !== null} title="내 판정을 취소하고 AI 잠정 판정으로 되돌립니다">
+            재검토하기
+          </button>
+        )}
       </div>
       <div className="cand__folds">
         <Fold id={`sol-${candidate.id}`} open={openSolution}>
@@ -67,11 +82,18 @@ function Candidate({ index, candidate, busy, onDecide }: { index: number; candid
         <Fold id={`rev-${candidate.id}`} open={openReview}>
           <div className="cand__review">
             <p className="cand__checks">{checksSentence(review)}</p>
+            {candidate.surface_check?.copy_suspected && <p className="cand__checks">원문이나 다른 후보와 문장이 거의 같습니다.</p>}
             <MathText text={review.reason} className="cand__reason" />
             {review.reviewer_type !== 'AI' && candidate.ai_review_result && (
               <>
                 <h3>AI 잠정 판정: {VERDICT_LABEL[candidate.ai_review_result.verdict]}</h3>
                 <MathText text={candidate.ai_review_result.reason} className="cand__reason" />
+              </>
+            )}
+            {candidate.plan && (
+              <>
+                <h3>설계에서 바꾼 점: {candidate.plan.changed_axes.map((axis) => AXIS_LABEL[axis] ?? axis).join(', ')}</h3>
+                <MathText text={candidate.plan.added_judgment} className="cand__reason" />
               </>
             )}
             {candidate.element_trace && (

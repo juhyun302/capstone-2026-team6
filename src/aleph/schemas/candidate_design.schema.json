@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CandidateDesign",
+  "description": "한 SolutionIdea로 만들 서로 다른 후보 문항의 설계안 목록. 문항 본문은 넣지 않는다.",
+  "type": "object",
+  "properties": {
+    "plans": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "pattern": "^p[1-9]$"},
+          "object": {"type": "string", "minLength": 1, "pattern": "^[^一-鿿]*$", "description": "다룰 대상과 그 구성."},
+          "condition_form": {"type": "string", "minLength": 1, "pattern": "^[^一-鿿]*$", "description": "조건의 구조."},
+          "target": {"type": "string", "minLength": 1, "pattern": "^[^一-鿿]*$", "description": "묻는 것."},
+          "representation": {"type": "string", "minLength": 1, "pattern": "^[^一-鿿]*$", "description": "제시 방식."},
+          "solution_route": {
+            "anyOf": [
+              {"type": "string", "minLength": 1, "pattern": "^[^一-鿿]*$"},
+              {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1, "pattern": "^[^一-鿿]*$"}}
+            ],
+            "description": "풀이 순서와 두 요소가 이어지는 단계. 단계별 문장 배열 또는 문장 하나."
+          },
+          "changed_axes": {
+            "type": "array",
+            "items": {"enum": ["object", "condition_form", "target", "representation", "solution_route"]},
+            "minItems": 3,
+            "uniqueItems": true,
+            "description": "원문과 실질적으로 달라진 항목. 서로 다른 세 가지 이상."
+          },
+          "added_judgment": {"type": "string", "minLength": 1, "pattern": "^[^一-鿿]*$", "description": "두 요소가 쓰이는 핵심 단계 안에 원문에 없던 판단."}
+        },
+        "required": ["id", "object", "condition_form", "target", "representation", "solution_route", "changed_axes", "added_judgment"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["plans"],
+  "additionalProperties": false
+}

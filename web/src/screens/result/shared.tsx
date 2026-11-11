@@ -1,5 +1,4 @@
 import { useEffect, useState, type RefObject } from 'react'
-import { Link } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { api } from '../../api'
 import type { CandidateQuestion, GenerationResult, ReviewResult, Verdict } from '../../api/types'
@@ -33,16 +32,18 @@ export function useDecisions(result: GenerationResult) {
   const [candidates, setCandidates] = useState(result.candidates)
   const [busy, setBusy] = useState<string | null>(null)
   useEffect(() => setCandidates(result.candidates), [result])
-  async function decide(candidate: CandidateQuestion, verdict: Verdict) {
-    setBusy(`${candidate.id}:${verdict}`)
+  async function record(candidate: CandidateQuestion, action: string, call: () => Promise<ReviewResult>) {
+    setBusy(`${candidate.id}:${action}`)
     try {
-      const next = await api.recordHumanReview(result.id, candidate.id, verdict, REASON_BY_VERDICT[verdict])
+      const next = await call()
       setCandidates((list) => list.map((x) => (x.id === candidate.id ? { ...x, review_result: next } : x)))
     } finally {
       setBusy(null)
     }
   }
-  return { candidates, decide, busy }
+  const decide = (candidate: CandidateQuestion, verdict: Verdict) => record(candidate, verdict, () => api.recordHumanReview(result.id, candidate.id, verdict, REASON_BY_VERDICT[verdict]))
+  const undo = (candidate: CandidateQuestion) => record(candidate, 'undo', () => api.undoHumanReview(result.id, candidate.id))
+  return { candidates, decide, undo, busy }
 }
 
 export function DecideRow({ candidate, busy, onDecide }: { candidate: CandidateQuestion; busy: string | null; onDecide: (v: Verdict) => void }) {
@@ -76,9 +77,6 @@ export function ResultHead({ onOpenSource }: { onOpenSource: () => void }) {
         <button type="button" className="btn btn--secondary btn--sm" onClick={onOpenSource}>
           원문 보기
         </button>
-        <Link to="/new" className="btn btn--secondary btn--sm">
-          다른 원문으로
-        </Link>
       </div>
     </header>
   )
@@ -102,7 +100,7 @@ export function SourceDialog({ ref, result }: { ref: RefObject<HTMLDialogElement
             <X aria-hidden="true" />
           </button>
         </div>
-        <MathText text={result.request.source.statement} className="sheet__statement" />
+        <MathText statement text={result.request.source.statement} className="sheet__statement" />
         <MathText text={result.request.source.solution} className="sheet__solution" />
         <div className="sheet__idea">
           <h3>풀이 아이디어</h3>

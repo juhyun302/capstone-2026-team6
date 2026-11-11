@@ -7,7 +7,8 @@
     "statement": {
       "type": "string",
       "minLength": 1,
-      "description": "후보 문항 본문. 선다형이면 선지까지 포함한다."
+      "not": {"pattern": "\\\\begin\\{(array|tabular)\\}|\\|\\s*:?-{3}|다음 표"},
+      "description": "후보 문항 본문. 선다형이면 선지까지 포함한다. 평가원 문항처럼 함수와 조건을 표로 제시하지 않는다."
     },
     "solution": {
       "type": "string",
