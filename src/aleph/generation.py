@@ -81,15 +81,20 @@ def extract_solution_idea(source_question: dict, complete: Complete) -> dict:
     return _first_valid(complete, load_prompt("parse_query"), user, validate_solution_idea)
 
 
-def generate_candidate(request: dict, complete: Complete) -> dict:
-    """Draft one candidate only after both key elements and the mechanism are confirmed."""
+def check_generation_request(request: dict) -> tuple[dict, dict]:
+    """Return the source text and conditions; a bad request fails before any model call."""
     conditions = {}
     for name in _CONDITIONS:
         value = request.get(name)
         if not isinstance(value, str) or not value.strip():
             raise ValueError(f"{name} is required")
         conditions[name] = value
-    source = _source_text(request.get("source_question") or {})
+    return _source_text(request.get("source_question") or {}), conditions
+
+
+def generate_candidate(request: dict, complete: Complete) -> dict:
+    """Draft one candidate only after both key elements and the mechanism are confirmed."""
+    source, conditions = check_generation_request(request)
 
     extraction = extract_solution_idea(request["source_question"], complete)
     if extraction["status"] != "OK":
