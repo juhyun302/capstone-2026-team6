@@ -11,7 +11,6 @@
 - [팀원](#팀원)
 - [프로젝트 개요](#프로젝트-개요)
 - [기술 스택](#기술-스택)
-- [로컬 실행](#로컬-실행)
 - [협업 규칙](#협업-규칙)
 
 ## MVP 사용자 가이드
@@ -50,8 +49,6 @@
 
 1. 브라우저로 접속 주소를 엽니다.
 2. 첫 화면의 **원문 올리기**를 누르면 입력 화면이 열립니다. 이어지는 조작은 [3. 핵심 기능 체험 순서](#3-핵심-기능-체험-순서)에 있습니다.
-
-배포 사이트 대신 내 컴퓨터에서 직접 실행하려면(선택) [로컬 실행](#로컬-실행)의 설치 방법과 실행 명령을 순서대로 따릅니다. 서버와 화면을 따로 띄우는 방법과 HTML 파일 하나로 쓰는 방법이 있고, 둘 다 본인의 OpenAI API 키가 필요합니다.
 
 ### 3. 핵심 기능 체험 순서
 
@@ -141,7 +138,6 @@
 
 - 따로 준비할 데이터, 파일, 라이브러리는 없습니다. 예시 원문은 입력 화면의 **예시 원문 채우기**에 들어 있고, 같은 내용을 [3. 핵심 기능 체험 순서](#3-핵심-기능-체험-순서)에 적었습니다. 후보 없이 멈추는 예시는 [4. 기대 결과 및 확인 방법](#4-기대-결과-및-확인-방법)에 있습니다.
 - 리뷰 기준은 이 저장소의 `main` 브랜치입니다.
-- 직접 실행할 때만 Python 3.12, Node.js 20.19 이상, OpenAI API 키가 필요합니다([로컬 실행](#로컬-실행)).
 
 #### 전문 지식/특수 환경
 
@@ -185,6 +181,7 @@
 | 2026-11-08 | 사용자 가이드 첫 작성 |
 | 2026-11-10 | 문항 수 선택, 같은 유형으로 더 뽑기, 승인 문항 파일 받기·복사, 재검토하기, 교육과정 범위 직접 선택 반영 |
 | 2026-11-11 | MVP 사용자 가이드 작성 안내의 항목 순서(서비스 소개, 실행 및 접속 방법, 핵심 기능 체험 순서, 기대 결과 및 확인 방법, 서비스별 추가 안내, 리뷰 기간 운영)에 맞춰 다시 정리하고, 내 문항을 텍스트로 넣는 방법을 추가 |
+| 2026-11-11 | 내 컴퓨터에서 직접 실행하는 방법(로컬 실행) 안내를 README에서 뺌. 배포 사이트 사용 방법은 그대로 |
 
 ## 팀 소개
 
@@ -218,90 +215,6 @@
 | 웹 화면 | React 19, Vite, TypeScript, KaTeX(수식), anime.js·motion(애니메이션) |
 | 모델 | OpenAI Responses API, `gpt-6-astra` |
 | 배포 | Cloudflare Workers. 배포한 웹에서는 같은 파이프라인의 TypeScript 이식본이 브라우저에서 돌고, 워커는 접속 비밀번호와 하루 한도를 확인한 뒤 모델 호출만 중계합니다. |
-
-## 로컬 실행
-
-원문과 해설을 넣으면 후보 문항 3개와 AI 잠정 검토를 받는 화면을 내 컴퓨터에서 띄웁니다. 서버에 로그인이 없으므로 공개된 곳에 띄우지 않습니다.
-
-준비물: Python 3.12, Node.js 20.19 이상, OpenAI API 키
-
-1. 저장소를 받습니다(`main` 브랜치).
-
-   ```bash
-   git clone https://github.com/juhyun302/capstone-2026-team6.git
-   cd capstone-2026-team6
-   ```
-
-2. Python 패키지를 설치합니다.
-
-   ```bash
-   python -m venv .venv
-   .venv\Scripts\activate        # macOS·Linux: source .venv/bin/activate
-   pip install -r requirements.txt -r requirements-dev.txt
-   ```
-
-3. `.env.example`을 `.env`로 복사하고 `OPENAI_API_KEY=` 뒤에 키를 넣습니다. `.env`는 Git에 올라가지 않습니다.
-
-4. 터미널 하나에서 서버를 띄웁니다.
-
-   ```bash
-   python scripts/run_server.py
-   ```
-
-5. 다른 터미널에서 화면을 띄웁니다.
-
-   ```bash
-   cd web
-   npm install
-   npm run dev
-   ```
-
-6. 브라우저에서 http://localhost:5173 을 엽니다.
-
-- 원문과 해설은 수식·텍스트로 넣습니다. 이미지 입력은 아직 지원하지 않습니다.
-- 요청 한 번에 2~5분이 걸리고 모델을 (후보 수 × 3 + 2)번, 기본 3개면 11번 호출합니다. 호출 비용은 `.env`의 키로 청구됩니다.
-- 결과는 서버를 끄면 사라집니다.
-- 검사: `python -m ruff check .`, `python -m pytest -q -rs`
-
-### HTML 파일 하나로 쓰기
-
-서버 없이 HTML 파일 하나를 더블클릭해 문항을 만듭니다. 파이프라인이 브라우저 안에서 돌고, 화면에 넣은 OpenAI 키로 OpenAI를 직접 부릅니다. 프롬프트와 스키마는 `src/aleph`의 파일을 그대로 묶습니다.
-
-```bash
-cd web
-npm install
-npm run build:single      # web/dist-single/aleph.html 이 만들어집니다
-```
-
-- `aleph.html`을 Chrome이나 Edge로 엽니다. 인터넷 연결이 필요합니다.
-- 오른쪽 "OpenAI API 키" 칸에 키를 넣습니다. 키는 그 브라우저에서 OpenAI로만 갑니다. "이 브라우저에 키 기억하기"를 켜면 그 브라우저에만 저장되고, 끄면 탭을 닫을 때 지워집니다.
-- 호출 비용은 키 주인 계정에 청구됩니다. 키를 다른 사람과 나누지 말고 각자 자기 키를 넣습니다.
-- 생성이 끝날 때까지 탭을 닫거나 새로 고치지 않습니다. 결과는 그 탭에 남고, 탭을 닫으면 사라집니다.
-
-### 웹에 올리기 (접속 비밀번호)
-
-팀 OpenAI 키 하나로 여러 사람이 웹에서 쓰게 합니다. Cloudflare Workers 하나가 화면을 띄우고 `/api/*`를 받습니다([web/worker/index.ts](web/worker/index.ts)).
-
-- 키는 Cloudflare 비밀값으로만 저장되고 브라우저로 오지 않습니다.
-- 접속 비밀번호가 맞는 요청만 OpenAI로 넘깁니다. 틀리면 1초 늦게 거절합니다.
-- 브라우저는 프롬프트 이름만 보내고, 워커가 `src/aleph/prompts`의 본문을 골라 붙입니다. 그래서 비밀번호를 알아도 Aleph의 다섯 작업 말고는 키를 쓸 수 없습니다. 모델은 [web/wrangler.jsonc](web/wrangler.jsonc)의 `OPENAI_MODEL`로 고정합니다.
-- 2분 넘게 걸리는 호출이 중간에 끊기지 않도록, 기다리는 동안 10초마다 공백을 보냅니다.
-- 하루(한국 시간) 모델 호출 수를 [web/wrangler.jsonc](web/wrangler.jsonc)의 `DAILY_CALL_LIMIT`(기본 450, 후보 3개 요청 약 40건)으로 제한합니다. 사이트 전체의 호출 수를 Durable Object 하나가 셉니다. 남은 한도가 가장 큰 요청 한 건(후보 5개, 17번)보다 적으면 새 요청을 시작하지 않습니다. 비밀번호를 README에 공개해도 하루 비용에 상한이 있도록 한 장치입니다.
-
-처음 한 번(`web` 폴더에서):
-
-```bash
-npx wrangler login                        # 브라우저에서 Cloudflare 로그인(무료 계정)
-npm run deploy                            # 화면 빌드 후 배포, 주소 https://aleph.<계정>.workers.dev 출력
-npx wrangler secret put OPENAI_API_KEY    # 이 용도로 새로 만든 키를 붙여 넣기
-npx wrangler secret put ACCESS_PASSWORD   # 팀에 나눌 긴 비밀번호
-```
-
-- 비밀값을 넣기 전에는 `/api/*`가 503을 돌려줍니다.
-- 비밀번호를 바꾸려면 `npx wrangler secret put ACCESS_PASSWORD`를 다시 실행합니다. 기존 비밀번호는 바로 막힙니다.
-- 코드를 고친 뒤에는 `npm run deploy`만 다시 실행합니다.
-- OpenAI에서 이 키 전용 프로젝트를 만들고 월 사용 한도를 걸어 둡니다. 비밀번호를 아는 사람은 요청을 여러 번 보낼 수 있기 때문입니다.
-- 로컬 확인: `web/.dev.vars`에 `OPENAI_API_KEY=`와 `ACCESS_PASSWORD=`를 적고 `npm run build:web && npx wrangler dev`를 실행합니다. `.dev.vars`는 Git에 올라가지 않습니다.
 
 ## 협업 규칙
 
