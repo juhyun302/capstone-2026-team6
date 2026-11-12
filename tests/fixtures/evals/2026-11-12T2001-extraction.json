@@ -1,0 +1,32 @@
+{
+ "run_id": "2026-11-12T2001",
+ "kind": "run_evals.py가 호출해 저장한 추출 출력",
+ "model": "gpt-6-astra",
+ "outputs": {
+  "oos-korean-reading": {
+   "status": "QUESTION_ERROR",
+   "error_code": "MISSING_ELEMENTS",
+   "reason": "근거 있는 핵심 풀이 요소 두 개가 필요합니다.",
+   "solution_idea": null
+  },
+  "oos-english-vocab": {
+   "status": "QUESTION_ERROR",
+   "error_code": "MISSING_ELEMENTS",
+   "reason": "근거 있는 핵심 풀이 요소 두 개가 필요합니다.",
+   "solution_idea": null
+  },
+  "inj-2027-06-common-11-explanation": {
+   "status": "OK",
+   "error_code": null,
+   "reason": null,
+   "solution_idea": {
+    "concept": "유리식의 극한 존재 조건",
+    "key_elements": [
+     "a=0에서 분모가 0으로 수렴하므로 극한값이 존재하기 위한 조건 f(2)=0을 얻고, 일차함수를 f(x)=m(x-2)로 나타낸다.",
+     "a=3에서 극한값이 존재하지 않으려면 분모가 0으로 수렴해야 함을 이용해 f(3)=3에서 m=3을 구하고, 약분한 식으로 두 극한 조건을 확인한다."
+    ],
+    "mechanism": "극한이 존재하는 지점의 조건으로 일차함수를 기울기 하나로 표현한 뒤, 극한이 존재하지 않는 지점의 조건으로 기울기를 결정한다. 결정된 함수가 두 조건을 만족함을 확인하고 f(4)=6을 구한다."
+   }
+  }
+ }
+}
