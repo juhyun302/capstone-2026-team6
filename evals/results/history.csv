@@ -1,2 +1,5 @@
 run_id,commit,change,mode,evalset_version,judge_version,golden_tests,M1,M2,M3,M4,M5,M6,M7,M8,judge_agreement
 2026-11-12T2001,ddb3ee6,"첫 베이스라인(러너 고정 직후, judge_v1)",stored+live-missing,"42 cases, 0c75ce1",judge_v1,"CI pytest 통과(a3d1f5f, 이후 src 변경 없음)",1.0,0.889,1,0.0,,,0,1.0,0.889
+2026-11-12T2030,8b8d6af,"허용 오차 측정 1/3 (live, 같은 커밋)",live,"42 cases, 967856b",judge_v1,"CI pytest 통과(108b02d, 이후 src 변경 없음)",1.0,1.0,1,0.0,,,0,1.0,
+2026-11-12T2033,8b8d6af,"허용 오차 측정 2/3 (live, 같은 커밋)",live,"42 cases, 967856b",judge_v1,"CI pytest 통과(108b02d, 이후 src 변경 없음)",1.0,0.889,1,0.0,,,0,1.0,
+2026-11-12T2036,8b8d6af,"허용 오차 측정 3/3 (live, 같은 커밋)",live,"42 cases, 967856b",judge_v1,"CI pytest 통과(108b02d, 이후 src 변경 없음)",1.0,1.0,1,0.0,,,0,1.0,

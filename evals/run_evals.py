@@ -14,6 +14,7 @@ usage:
   --source-texts  평가원 원문·해설 텍스트 JSON {원문 ID: {problem, explanation}}. 저장소 밖에 둔다(evals/README.md 9절).
   --judge         M2 케이스마다 judge를 따로 부르고 사람 라벨과의 일치율을 잰다.
   --no-record     결과 파일과 history.csv를 쓰지 않는다(오답 주입 확인용).
+  --judge-trust   사람 라벨로 judge를 검증한 이전 결과 파일. 같은 judge 버전이고 usable이면 사람 라벨이 없는 새 출력에도 judge를 쓴다.
 """
 import argparse
 import csv
@@ -191,6 +192,7 @@ def main():
     ap.add_argument('--stored', nargs='*')
     ap.add_argument('--judge-stored')
     ap.add_argument('--no-record', action='store_true')
+    ap.add_argument('--judge-trust', help='judge를 사람 라벨로 검증한 이전 결과 파일. 같은 judge 버전이고 usable이면 사람 라벨이 없는 출력에도 judge를 쓴다')
     args = ap.parse_args()
     if hasattr(sys.stdout, 'reconfigure'):
         sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -249,7 +251,10 @@ def main():
         row['errors'] += errs
         if (case['expect'] or {}).get('reference'):
             label = human.get(case['id'])
-            row['human'] = label['pass'] if label and label.get('run_id') == src_run else None
+            same = label is not None and label.get('run_id') == src_run
+            row['human'] = label['pass'] if same else None
+            if same and 'c1' in label and 'c2' in label:
+                row['human_criteria'] = {'c1': label['c1'], 'c2': label['c2']}
             if args.judge and out.get('status') == 'OK':
                 try:
                     ref = reference_label(case['expect']['reference'])
@@ -270,7 +275,25 @@ def main():
     # judge 검증: 사람 라벨이 있는 케이스에서 judge 판정과의 일치율
     pairs = [(r['judge']['pass'], r['human']) for r in rows if r.get('judge') and r.get('human') is not None]
     agreement = round(sum(a == b for a, b in pairs) / len(pairs), 3) if pairs else None
+    by_criterion = {}
+    for k in ('c1', 'c2'):
+        pk = [(r['judge'][k]['pass'], r['human_criteria'][k]) for r in rows if r.get('judge') and r.get('human_criteria')]
+        by_criterion[k] = round(sum(a == b for a, b in pk) / len(pk), 3) if pk else None
     judge_usable = agreement is not None and agreement >= JUDGE_THRESHOLD
+    trusted = None
+    if args.judge_trust:
+        prev = json.loads(Path(args.judge_trust).read_text(encoding='utf-8'))
+        pv = prev.get('judge_validation') or {}
+        if prev.get('judge_version') != judge_version:
+            why = f"judge 버전이 다르다({prev.get('judge_version')} ≠ {judge_version})"
+        elif not pv.get('usable'):
+            why = f"그 실행에서 judge가 검증되지 않았다(일치율 {pv.get('agreement')})"
+        else:
+            why = None
+            trusted = {'from': prev.get('run_id'), 'agreement': pv.get('agreement'), 'pairs': pv.get('pairs')}
+            judge_usable = True
+        if why:
+            print(f'  --judge-trust 거부: {why}')
 
     def meaning(r):
         """M2 의미 일치: 사람 라벨이 있으면 사람, 없으면 검증된 judge만 쓴다."""
@@ -316,7 +339,8 @@ def main():
         'model': model, 'evalset_version': f'{len(cases)} cases, {sha7(EVALSET)}', 'judge_version': judge_version if args.judge else None,
         'golden_tests': args.golden, 'scope': 'v1: 풀이 요소 추출 단계, status=LABELED',
         'metrics': metrics,
-        'judge_validation': {'pairs': len(pairs), 'agreement': agreement, 'threshold': JUDGE_THRESHOLD, 'usable': judge_usable} if args.judge else None,
+        'judge_validation': {'pairs': len(pairs), 'agreement': agreement, 'agreement_by_criterion': by_criterion,
+                             'threshold': JUDGE_THRESHOLD, 'usable': judge_usable, 'trusted_from': trusted} if args.judge else None,
         'cases': [{k.rstrip('_'): v for k, v in r.items()} for r in rows],
         'skipped': skipped,
     }
@@ -326,7 +350,8 @@ def main():
         shown = '—' if m['value'] is None else m['value']
         print(f"  {k} {m['name']}: {shown} ({m['passed']}/{m['total']}) 목표 {m['target']} → {'측정 대상 없음' if m['met'] is None else ('충족' if m['met'] else '미달')}")
     if args.judge:
-        print(f'  judge({judge_version}) 사람 라벨 일치율: {agreement} ({len(pairs)}건) → {"사용 가능" if judge_usable else "점수에 쓰지 않음"}')
+        print(f'  judge({judge_version}) 사람 라벨 일치율: {agreement} ({len(pairs)}건, c1 {by_criterion["c1"]}, c2 {by_criterion["c2"]})'
+              f' → {"사용 가능" if judge_usable else "점수에 쓰지 않음"}' + (f' (검증 출처: {trusted["from"]})' if trusted else ''))
     for r in rows:
         mark = 'PASS' if r.get('pass_') else 'FAIL'
         detail = ', '.join(f'{k}={v}' for k, v in (r.get('code') or {}).items())
