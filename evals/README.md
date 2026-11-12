@@ -1,6 +1,6 @@
 # 평가 데이터 — 골든 케이스와 eval 세트
 
-> 상태: 초안(2026-11-03 갱신). 데이터 구성과 라벨링 절차를 정하고 해설 초안을 준비하는 단계다. 현재 AI 해설 초안 7건·사람이 AI를 활용해 쓴 해설 3건이며, 모두 사람 검산 전이다. 지표·채점기·러너·베이스라인은 강의 7 evals 설계에서 정한다.
+> 상태: 초안(2026-11-03 갱신, 2026-11-12 키를 강의 7 지침의 `graders`로 바꾸고 범위 밖·추출 인젝션·판정지 후보 검토 케이스를 더함). 데이터 구성과 라벨링 절차를 정하고 해설 초안을 준비하는 단계다. 현재 AI 해설 초안 7건·사람이 AI를 활용해 쓴 해설 3건이며, 모두 사람 검산 전이다. 지표·채점기·러너·베이스라인은 강의 7 evals 설계에서 정한다.
 
 ## 1. 두 종류의 데이터
 
@@ -27,15 +27,15 @@
 
 ## 3. `evalset.jsonl` 키
 
-강의 6의 키(`id`, `category`, `query`, `expect`, `judge`, `note`)에 `split`과 `status`를 더한다.
+강의 7 지침의 키(`id`, `category`, `query`, `expect`, `graders`, `note`)에 `split`과 `status`를 더한다.
 
 | 키 | 값 |
 |---|---|
-| `id` | 접두어 + 원문 ID. `ext-` 추출, `hal-` 요소 부족, `fmt-` 입력 형식, `clr-` 판독 불가, `cnf-` 입력 충돌, `rev-` 후보 검토, `inj-` 지시문 삽입 |
+| `id` | 접두어 + 원문 ID. `ext-` 추출, `hal-` 요소 부족, `fmt-` 입력 형식, `clr-` 판독 불가, `cnf-` 입력 충돌, `rev-` 후보 검토, `inj-` 지시문 삽입, `oos-` 입력 범위 밖 |
 | `category` | 4절 범주 |
-| `query` | `tool`(`generate_linked_question`/`review_candidate`), `source`(원문 ID), `input_format`(`text`/`image`/`mixed`), `curriculum_scope`. 필요하면 `candidate`(후보 위치), `variant`(원문을 바꾼 방법) |
+| `query` | `tool`(`generate_linked_question`/`review_candidate`), `source`(원문 ID), `input_format`(`text`/`image`/`mixed`), `curriculum_scope`. 필요하면 `candidate`(후보 위치), `variant`(원문을 바꾼 방법), `input`(팀이 직접 쓴 입력 본문. 평가원 원문은 넣지 않는다) |
 | `expect` | 온톨로지 필드로 쓴 기대값. 라벨 확정 전에는 `null`이거나 의도한 값 |
-| `judge` | `code`(필드 대조), `llm`(참조 답안과 의미 비교), `human` |
+| `graders` | 적용할 채점기 목록. `code`(상태·필드 대조), `judge`(LLM-as-judge. 두 요소·메커니즘의 의미 비교, 검토 이유의 품질). 정하는 규칙은 [EVAL_DESIGN 2절](EVAL_DESIGN.md#2-데이터셋-구성) |
 | `split` | `dev` / `holdout` / `unassigned` |
 | `status` | `PLANNED`(만들 예정) → `UNLABELED`(입력 준비됨) → `LABELED`(2인 합의). `SEED`는 이전 1인 판정을 옮긴 것으로 다시 라벨링해야 한다 |
 | `note` | AC 번호, 라벨 근거, 라벨러와 날짜 |
@@ -43,7 +43,7 @@
 - `expect.verdict_not`은 허용하지 않는 `verdict` 값 목록이다.
 - AI가 낸 결과는 모두 `approval_status=PROVISIONAL`이어야 한다(AC7).
 - `LABELED`가 아닌 케이스는 점수에 넣지 않는다.
-- `judge: llm`은 사람 라벨과의 일치율 80% 이상을 확인하기 전까지 사람이 채점한다.
+- `graders`에 `judge`가 있는 케이스의 judge 판정은 사람 라벨과의 일치율 80% 이상을 확인하기 전까지 사람이 채점한다.
 
 ## 4. 범주
 
@@ -54,9 +54,10 @@
 | `clarify` | 판독할 수 없는 이미지 | AC9 |
 | `conflict` | 이미지와 텍스트의 수식이 다름 | AC9 |
 | `constraint` | 결함·교육과정 이탈·수치만 바꾼 후보를 `USE`로 표시하지 않음. 정상 대조군 포함 | AC3, AC4, AC5, AC7 |
-| `injection` | 원문·해설·후보 안의 지시문이 판정을 바꿈 | AC4, AC7 |
+| `injection` | 원문·해설·후보 안의 지시문이 추출이나 판정을 바꿈 | AC1, AC4, AC7 |
+| `out_of_scope` | 비수학 문항처럼 입력 범위 밖 | AC2, SPEC 4절 비포함 |
 
-강의 6의 `out_of_scope`는 SPEC에 입력 범위 밖 요청의 기대 동작이 없어 아직 쓰지 않는다(9절).
+`out_of_scope`의 기대 동작은 SPEC에 없어 [EVAL_DESIGN 1.1](EVAL_DESIGN.md#11-v1-측정-지표--풀이-아이디어-추출-단계)의 M8(`QUESTION_ERROR`)을 따른다(2026-11-12 추가).
 
 ## 5. 원문 출처
 
@@ -89,7 +90,7 @@
 | 추출 | 15건 | 원문 10건 + 형식·판독·충돌·요소 부족 파생 5건 |
 | 후보 검토 | 30건 | 정상 대조군 10, 타당성 결함 8, 교육과정 이탈 6, 수치만 변경·메커니즘 소실 6 |
 
-현재 `evalset.jsonl`에는 신규 원문 10건, 파생 5건, dev 추출 3건, 스파이크 판정 SEED 3건, 결함 유형별 예정 7건, 지시문 삽입 예정 1건이 있다.
+현재 `evalset.jsonl`에는 42건이 있다. 신규 원문 10건, 파생 5건, dev 추출 3건, 스파이크 판정 SEED 3건, 결함 유형별 예정 7건, 지시문 삽입 2건(검토·추출), 범위 밖 2건, 판정지 후보 검토 10건(외부 전문가 1인 판정, SEED)이다. 범주별 수와 채점 규칙은 [EVAL_DESIGN 2절](EVAL_DESIGN.md#2-데이터셋-구성)에 있다.
 
 신규 원문 10건의 해설은 준비했으며, 2026-11-02의 AI 초안 7건은 번호 붙인 단계 형식, 2026-11-03에 사람이 AI를 활용해 쓴 3건은 해설생성기 본문 형식이다. AI 보조 정답 대조는 10건 모두 일치했지만 사람 검산과 라벨 합의는 아직 하지 않았다. 후속 3건은 HWPX·PDF·PNG 변환과 출력 확인을 마쳤으며, 변환 출력본은 저장소 밖에 둔다. 해설 초안 추가로 `evalset.jsonl`의 기대값·상태·split이나 라벨을 변경하지 않았다.
 
@@ -97,6 +98,6 @@
 
 - 평가원 원문 텍스트·이미지를 저장소에 둘지, 둔다면 출처 표기 방식.
 - AC9에서 "확인이 필요한 부분"을 반환하는 형식과 상태 값. SPEC 5절에 정해지지 않았다.
-- 입력 범위 밖 요청(비수학 문항 등)의 기대 동작.
-- `judge: llm`의 심사 프롬프트와 일치율 검증 절차(강의 7).
+- 입력 범위 밖 요청(비수학 문항 등)의 기대 동작. v1 evals는 EVAL_DESIGN 1.1 M8을 따른다.
+- `judge` 채점기의 프롬프트(`evals/judge_prompt.md`)와 일치율 검증 절차(강의 7, EVAL_DESIGN 3절).
 - 해설생성기 본문 형식으로 작성한 후속 3건에서 라벨 근거를 인용할 단계·문단 식별 방식.
