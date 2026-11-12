@@ -86,7 +86,10 @@ def reference_label(ref):
     sec = re.search(rf'^## {m.group(2)}\. .*?(?=^## |\Z)', text, re.S | re.M)
     if not sec:
         raise ValueError(f'정답 라벨 {m.group(2)}번 절이 없다')
-    get = lambda k: (re.search(rf'^- {re.escape(k)}\s*(.*)$', sec.group(0), re.M) or [None, ''])[1].strip()
+    def get(k):
+        found = re.search(rf'^- {re.escape(k)}\s*(.*)$', sec.group(0), re.M)
+        return found.group(1).strip() if found else ''
+
     return {'element_1': get('요소 ①:'), 'element_2': get('요소 ②:'), 'mechanism': get('메커니즘:'),
             'accepted_alternatives': get('맞다고 볼 다른 답안(선택):')}
 
@@ -198,7 +201,7 @@ def main():
                for c in cases if c not in in_scope]
     texts = json.loads(Path(args.source_texts).read_text(encoding='utf-8')) if args.source_texts else None
     index = stored_index(args.stored if args.stored is not None else DEFAULT_STORED + sorted(FIXTURES.glob('*-extraction.json')))
-    human = {l['id']: l for l in load_jsonl(JUDGE_LABELS) if l.get('task') == 'extraction_match'}
+    human = {label['id']: label for label in load_jsonl(JUDGE_LABELS) if label.get('task') == 'extraction_match'}
     judge_version, judge_system = judge_parts()
     judge_stored = json.loads(Path(args.judge_stored).read_text(encoding='utf-8'))['responses'] if args.judge_stored else None
 
@@ -292,7 +295,9 @@ def main():
                 ok = ok and m
         r['pass_'] = ok
 
-    by_cat = lambda *cats: [r for r in rows if r['category'] in cats]
+    def by_cat(*cats):
+        return [r for r in rows if r['category'] in cats]
+
     ext = [r for r in rows if r['category'] == 'extraction' and not r['id'].startswith('fmt-')]
     fmt = [r for r in rows if r['id'].startswith('fmt-')]
     with_out = [r for r in rows if r.get('output') is not None]
