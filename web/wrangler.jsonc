@@ -13,7 +13,7 @@
   "assets": { "directory": "./dist-web" },
   "rules": [{ "type": "Text", "globs": ["**/*.md"], "fallthrough": true }],
   // model calls per day (Korean time) for everyone; one request is about 11 calls
-  "vars": { "OPENAI_MODEL": "gpt-6-astra", "DAILY_CALL_LIMIT": "450" },
+  "vars": { "OPENAI_MODEL": "gpt-6.1-sol", "DAILY_CALL_LIMIT": "450" },
   "durable_objects": { "bindings": [{ "name": "USAGE", "class_name": "Usage" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Usage"] }]
 }

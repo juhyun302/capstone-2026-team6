@@ -4,7 +4,7 @@
 //   password (web build): the team's access password; the OpenAI key stays on the server.
 
 export const accessMode: 'key' | 'password' = import.meta.env.VITE_ACCESS === 'password' ? 'password' : 'key'
-export const DEFAULT_MODEL = 'gpt-6-astra'
+export const DEFAULT_MODEL = 'gpt-6.1-sol'
 const STORE = accessMode === 'password' ? 'aleph.access.v1' : 'aleph.openai.v1'
 
 export interface AccessSettings {
