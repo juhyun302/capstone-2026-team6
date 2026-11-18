@@ -50,6 +50,23 @@
 1. 브라우저로 접속 주소를 엽니다.
 2. 첫 화면의 **원문 올리기**를 누르면 입력 화면이 열립니다. 이어지는 조작은 [3. 핵심 기능 체험 순서](#3-핵심-기능-체험-순서)에 있습니다.
 
+#### 내 컴퓨터에서 실행하기 (개발·평가용)
+
+리뷰어는 위 배포 사이트만 쓰면 되고, 아래는 저장소를 직접 실행하거나 테스트를 돌릴 때 씁니다.
+
+| 항목 | 내용 |
+| :--- | :--- |
+| 실행 환경 | Python 3.12, Node.js 20 이상, OpenAI API 키(모델 `gpt-6-astra`) |
+| 설치 | 저장소 루트에서 `pip install -r requirements-dev.txt`, `web/`에서 `npm install` |
+| 설정 | `.env.example`을 `.env`로 복사해 `OPENAI_API_KEY`를 채웁니다. `.env`는 커밋하지 않습니다 |
+| 서버 실행 | `python scripts/run_server.py` → `http://127.0.0.1:8000` (로그인이 없으므로 localhost에만 띄웁니다) |
+| 화면 실행 | 다른 터미널에서 `cd web && npm run dev` → `http://localhost:5173` (Vite가 `/api`를 서버로 넘깁니다) |
+| 서버 없이 화면만 | `cd web && VITE_API=mock npm run dev` (모의 응답) |
+| 골든 테스트 | `python -m ruff check .` 다음 `python -m pytest -q -rs` (CI와 같은 명령, skip·xfail 0건이어야 합니다) |
+| evals 러너 | `python evals/run_evals.py --change "설명" --mode stored --judge --judge-stored tests/fixtures/evals/2026-11-12T2001-judge.json --no-record` (저장 출력으로 재채점, 모델 호출 없음) |
+
+자세한 화면 구조와 빌드 옵션은 [web/README.md](web/README.md)에 있습니다.
+
 ### 3. 핵심 기능 체험 순서
 
 약 10분 걸립니다.
@@ -77,23 +94,23 @@
    - 예시로 할 때: 입력 화면 오른쪽 위의 **예시 원문 채우기**를 누릅니다. 위의 예시가 채워지고 교육과정 범위는 수학Ⅱ가 됩니다.
    - 내 문항으로 할 때: **원문 문항**과 **원문 해설**을 텍스트로 적고, 칸 아래 미리보기로 수식을 확인한 뒤 **교육과정 범위**를 고릅니다.
 
-3. **접속 비밀번호** 칸에 `3780`을 넣습니다. **만들 문항 수**는 기본값 3개로 두고(1~5개를 고를 수 있습니다) **풀이 요소 추출하고 후보 만들기**를 누릅니다.
+3. **접속 비밀번호** 칸에 `3780`을 넣습니다. **만들 문항 수**는 기본값 3개로 두고(1~5개를 고를 수 있습니다) **풀이 요소 추출하고 후보 만들기**를 누릅니다. → AC1(두 요소·메커니즘 추출), AC7(후보와 잠정 검토가 함께 나옴)
 
    <img src="docs/images/user-guide/2-input.png" alt="입력 화면" width="640">
 
-4. 진행 화면이 열립니다. 후보 3개면 2~5분 걸리며, 그동안 탭을 닫거나 새로 고치지 않습니다. 그래프로 지금 어느 단계를 누가(AI, 코드, 사람) 하는지, 아래 진행 바로 남은 시간을 봅니다.
+4. 진행 화면이 열립니다. 후보 3개면 2~5분 걸리며, 그동안 탭을 닫거나 새로 고치지 않습니다. 그래프로 지금 어느 단계를 누가(AI, 코드, 사람) 하는지, 아래 진행 바로 남은 시간을 봅니다. → 그래프의 "구조 검증" 노드가 AC1의 스키마 검사, "잠정 검토" 노드가 AC3~AC5의 검토 단계입니다.
 
    <img src="docs/images/user-guide/3-progress.png" alt="진행 화면" width="640">
 
-5. 끝나면 **검토 결과** 화면으로 바뀌고 고른 수만큼(기본 3개) 후보가 나옵니다.
+5. 끝나면 **검토 결과** 화면으로 바뀌고 고른 수만큼(기본 3개) 후보가 나옵니다. → AC7: 모든 AI 판정은 점선 도장의 잠정 판정입니다.
 
    <img src="docs/images/user-guide/4-result.png" alt="검토 결과 화면" width="640">
 
-6. 후보 하나를 골라 먼저 직접 풀어 봅니다. 그다음 **풀이 보기**로 후보의 풀이를, **검토 근거 보기**로 AI가 그렇게 판정한 이유를 확인합니다.
+6. 후보 하나를 골라 먼저 직접 풀어 봅니다. 그다음 **풀이 보기**로 후보의 풀이를, **검토 근거 보기**로 AI가 그렇게 판정한 이유를 확인합니다. → AC3: 검토 근거에 두 요소와 메커니즘이 후보에서 어떻게 쓰였는지 적혀 있어야 합니다.
 
    <img src="docs/images/user-guide/5-candidate-open.png" alt="풀이와 검토 근거를 연 후보" width="420">
 
-7. 후보 아래 네 버튼(**사용 승인**, **수정 필요**, **보류**, **폐기**) 중 하나를 눌러 판정을 기록합니다. 판정하면 네 버튼은 사라지고, 후보 목록 아래 판정 현황의 숫자가 하나 올라갑니다(예: "3개 중 2개 판정 · 사용 승인 1 · 수정 필요 1"). 잘못 눌렀으면 **검토 근거 보기** 옆의 **재검토하기**를 누릅니다. 내 판정이 취소되고 AI 잠정 판정과 네 버튼으로 돌아가며, 판정 현황의 숫자도 하나 줄어듭니다.
+7. 후보 아래 네 버튼(**사용 승인**, **수정 필요**, **보류**, **폐기**) 중 하나를 눌러 판정을 기록합니다. 판정하면 네 버튼은 사라지고, 후보 목록 아래 판정 현황의 숫자가 하나 올라갑니다(예: "3개 중 2개 판정 · 사용 승인 1 · 수정 필요 1"). 잘못 눌렀으면 **검토 근거 보기** 옆의 **재검토하기**를 누릅니다. 내 판정이 취소되고 AI 잠정 판정과 네 버튼으로 돌아가며, 판정 현황의 숫자도 하나 줄어듭니다. → AC7: 사용 승인은 사람만 할 수 있고, AC4·AC5: 결함이나 교육과정 이탈이 표시된 후보는 승인 버튼이 꺼져 있습니다.
 
 8. 사용 승인한 후보가 하나 이상 있으면 판정 현황 옆의 **승인 문항 파일로 받기**를 누를 수 있습니다. 누르면 사용 승인한 문항과 풀이가 HTML 파일 한 개로 저장됩니다. **승인 문항 복사**를 누르면 같은 내용을 `$ … $` LaTeX 글자로 복사합니다.
 
@@ -118,6 +135,18 @@
 - 최종 결과물은 **승인 문항 파일로 받기**로 저장한 HTML 파일입니다. 파일을 더블클릭하면 인터넷 없이도 브라우저에서 사용 승인한 문항과 풀이가 수식까지 보이고, 브라우저의 인쇄 기능으로 PDF로 만들 수 있습니다. 파일과 복사에는 사용 승인한 문항만 들어갑니다.
 
   <img src="docs/images/user-guide/8-saved-file.png" alt="저장한 HTML 파일을 브라우저로 연 화면" width="480">
+
+**AC별 확인 시나리오**
+
+| AC | 입력 예 | 기대 결과 | 확인 위치 |
+| :--- | :--- | :--- | :--- |
+| AC1 | 「예시 원문 채우기」(수학Ⅱ) | 진행 화면 "지금까지 찾은 것"에 개념, 요소 2개, 메커니즘이 채워집니다 | 3절 4단계 |
+| AC2 | 원문 `함수 $f(x)=x^2$의 도함수를 구하시오.` / 해설 `미분하면 $f'(x)=2x$이다.` | 몇 초 안에 "문항 오류로 처리했습니다"가 뜨고 후보를 만들지 않습니다 | 아래 "후보 없이 멈추는 경우" |
+| AC3 | 예시 원문 | 각 후보의 검토 근거에 설계에서 바꾼 축(대상, 조건 구조, 묻는 것)과 두 요소의 응용이 적힙니다. 원문과 문장 유사도 0.86 이상이면 복제 의심이 표시되고 잠정 `USE`가 나오지 않습니다 | 3절 6단계 |
+| AC4·AC5 | 예시 원문(후보 중 수정 필요 판정이 있을 때) | 결함·교육과정 이탈이 표시된 후보는 사용 승인 버튼이 꺼져 있습니다 | 위 "최종 결과 확인 방법" |
+| AC6 | 모든 입력 | 결과 어디에도 정답률이나 "학생 검증" 표시가 없습니다 | 결과 화면 전체 |
+| AC7 | 예시 원문 | AI 판정은 점선 "잠정" 도장이고, 사용 승인을 누른 뒤에만 실선 "사용 가능 · 강사 승인"으로 바뀝니다 | 3절 7단계 |
+| AC8·AC9 | 이미지 탭에 이미지 업로드 | "이미지 입력은 아직 지원하지 않습니다"가 뜹니다. 이번 MVP 범위 밖([SPEC 6절](docs/SPEC.md#6-수용-기준)) | 3절 입력 방법 |
 
 다른 입력으로 다시 실행하는 방법:
 
@@ -232,3 +261,16 @@ PR 제목은 주차를 대괄호로 가장 먼저 표시한 `[N주차] 작업 �
 
 - 예시: `[5주차] PR 작성 규칙 추가`
 - 예시: `[6주차] 문항 업로드 기능 구현`
+
+## 평가 산출물 위치
+
+| 산출물 | 위치 |
+| :--- | :--- |
+| 제품 스펙과 수용 기준(MVP 포함 AC 표시) | [docs/SPEC.md](docs/SPEC.md) 6절 |
+| 골든 케이스 | [tests/harness/golden_cases.yaml](tests/harness/golden_cases.yaml) (검증기 33건), [generation_cases.yaml](tests/harness/generation_cases.yaml) 11건, [review_cases.yaml](tests/harness/review_cases.yaml) 15건, [pipeline_cases.yaml](tests/harness/pipeline_cases.yaml) 10건 |
+| 골든 테스트 | [tests/test_validation_golden.py](tests/test_validation_golden.py), [test_generation_golden.py](tests/test_generation_golden.py), [test_review_golden.py](tests/test_review_golden.py), [test_pipeline_golden.py](tests/test_pipeline_golden.py). CI: [.github/workflows/tests.yml](.github/workflows/tests.yml) |
+| 위임 프롬프트와 결함 주입 기록 | [docs/prompts/delegation_validation.md](docs/prompts/delegation_validation.md) (출력 검증기), [docs/prompts/delegation_evals.md](docs/prompts/delegation_evals.md) (evals 러너) |
+| evals 설계서 | [evals/EVAL_DESIGN.md](evals/EVAL_DESIGN.md) (지표·합격선·judge·러너·베이스라인), 데이터 구성 규칙은 [evals/README.md](evals/README.md) |
+| evals 데이터셋 | [evals/evalset.jsonl](evals/evalset.jsonl) 42건 |
+| judge 프롬프트 / 사람 라벨 | [evals/judge_prompt.md](evals/judge_prompt.md) / [evals/judge_labels.jsonl](evals/judge_labels.jsonl) |
+| 러너 / 결과 / 이력 | [evals/run_evals.py](evals/run_evals.py) / [evals/results/](evals/results/) / [evals/results/history.csv](evals/results/history.csv) |

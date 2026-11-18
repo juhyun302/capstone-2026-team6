@@ -62,19 +62,21 @@
 
 ## 6. 수용 기준
 
-각 AC의 조건 유형을 표시했다. 현재 `tests/harness/golden_cases.yaml`의 33개 케이스는 AC1의 구조 검사와 AC2의 null 후처리를 검사하며, 각 케이스의 `ac`·`note`로 근거를 연결한다. 원문 근거·의미상 구별, 후보 생성 중단과 AC3~AC9는 현재 골든 테스트의 완료 범위에 포함하지 않는다.
+각 AC의 조건 유형을 표시했다. `tests/harness/golden_cases.yaml` 33개는 AC1의 구조 검사와 AC2의 null 후처리를, `generation_cases.yaml` 11개·`review_cases.yaml` 15개·`pipeline_cases.yaml` 10개는 AC1~AC5·AC7의 단계 간 흐름과 판정 규칙을 모델 호출 없이 검사한다. 각 케이스의 `ac`·`note`로 근거를 연결한다. 원문 근거·의미상 구별과 수학적 타당성은 evals(`evals/EVAL_DESIGN.md`)에서 판정한다.
 
-| 번호 | 유형 | 수용 기준 | 판정 예시 |
-|---|---|---|---|
-| AC1 | 이벤트 기반 | 원본문항과 해설에서 풀이 아이디어를 추출할 때, Aleph는 `SolutionIdea` 스키마에 맞게 근거 있는 핵심 풀이 요소 두 개와 두 요소의 연결 메커니즘을 출력한다. | 정상 골든 케이스에서 `key_elements`가 정확히 두 개이고 `mechanism`이 비어 있지 않으며 JSON 스키마 검증을 통과한다. |
-| AC2 | 예외 대응 | 해설에서 근거 있는 핵심 풀이 요소 두 개나 그 연결을 확인할 수 없을 때, Aleph는 `QUESTION_ERROR`와 이유를 반환하고 후보 생성을 진행하지 않는다. | 한 요소만 확인되는 입력에서 임의의 두 번째 요소나 후보 문항이 나오면 실패한다. |
-| AC3 | 이벤트 기반 | Aleph가 후보 문항을 제시할 때마다, 원문에서 추출한 두 요소와 연결 메커니즘이 후보 풀이에서 어떻게 응용됐는지 `ReviewResult.reason`에 기록한다. 원문의 수치·기호만 바꾼 후보는 잠정 `ReviewResult.verdict=USE`로 표시하지 않는다. | 두 요소 중 하나의 역할이나 연결 근거가 빠지면 실패한다. 전문가가 메커니즘이 응용되지 않았거나 수치·기호만 바뀌었다고 표시한 골든 케이스를 `USE`로 판정해도 실패한다. |
-| AC4 | 예외 대응 | 반례·정의역 누락·경계값 오류가 확인된 후보를 검토할 때, Aleph는 `ReviewResult.validity_issue=true`와 이유를 제시하고 잠정 `USE`를 추천하지 않는다. | 로그 3, 4, 6, 7, 8, 10 유형의 오류가 확인된 골든 케이스에서 결함을 놓치거나 `USE`를 추천하면 실패한다. |
-| AC5 | 예외 대응 | 교육과정 범위를 벗어난 후보를 검토할 때, Aleph는 `ReviewResult.curriculum_issue=true`와 이유를 제시하고 잠정 `USE`를 추천하지 않는다. | 로그 9 유형의 교육과정 이탈이 확인된 골든 케이스에서 결함을 놓치거나 `USE`를 추천하면 실패한다. |
-| AC6 | 상시 적용 | 실제 학생 풀이 데이터가 없으면, Aleph는 `DifficultyProfile.student_verified=true`나 실측 정답률이라고 표현한 값을 만들지 않는다. | 학생 풀이 데이터가 없는 케이스에 검증됨 표시나 실측 수치가 있으면 실패한다. |
-| AC7 | 이벤트 기반 | 후보 생성이 끝나면, Aleph는 문항·풀이와 잠정 `ReviewResult.verdict`, `reason`을 함께 제시하고 이를 최종 사용 승인으로 표시하지 않는다(`ReviewResult.approval_status=PROVISIONAL`). | 후보만 있고 풀이·검토 이유가 빠지거나 AI의 잠정 판정을 최종 승인으로 표시하면 실패한다. AI가 낸 `review_result`의 `approval_status`가 `PROVISIONAL`이 아니면 실패한다. |
-| AC8 | 이벤트 기반 | 원문·해설이 이미지와 수식·텍스트 중 한 형식 또는 두 형식의 조합으로 입력되면, Aleph는 확인 가능한 문항·수식을 읽어 동일한 풀이 요소 추출 흐름으로 처리한다. | 같은 문항의 이미지·텍스트·혼합 입력 골든 케이스에서 핵심 두 요소가 일치해야 한다. |
-| AC9 | 예외 대응 | 원문·해설 이미지가 판독 불가이거나 이미지와 텍스트의 내용이 서로 충돌할 때, Aleph는 수식을 추측하지 않고 확인이 필요한 부분을 반환한다. | 흐리거나 서로 충돌하는 입력 골든 케이스에서 수식을 지어내면 실패한다. |
+**MVP 범위(2026-11-11 리뷰 배포본 기준):** 아래 표의 「MVP」 열이 `포함`인 AC1~AC7이 이번 MVP의 수용 기준이다. AC8(이미지·텍스트 혼합 입력)과 AC9(판독 불가·충돌 입력)는 이미지 입력을 아직 받지 않아 MVP에서 제외한다. 서버와 웹은 이미지 입력을 "이미지 입력은 아직 지원하지 않습니다"로 거부하며(`src/aleph/generation.py`의 `_source_text`), 수식을 추측해 처리하지 않는다. 두 AC는 최종 평가 전 이미지 입력 구현과 함께 범위에 넣는다. 각 AC의 검증 위치는 「검증」 열에 둔다.
+
+| 번호 | MVP | 유형 | 수용 기준 | 판정 예시 | 검증 |
+|---|---|---|---|---|---|
+| AC1 | 포함 | 이벤트 기반 | 원본문항과 해설에서 풀이 아이디어를 추출할 때, Aleph는 `SolutionIdea` 스키마에 맞게 근거 있는 핵심 풀이 요소 두 개와 두 요소의 연결 메커니즘을 출력한다. | 정상 골든 케이스에서 `key_elements`가 정확히 두 개이고 `mechanism`이 비어 있지 않으며 JSON 스키마 검증을 통과한다. | 골든 `golden_cases.yaml`(구조), `generation_cases.yaml`; evals M1·M2·M4 |
+| AC2 | 포함 | 예외 대응 | 해설에서 근거 있는 핵심 풀이 요소 두 개나 그 연결을 확인할 수 없을 때, Aleph는 `QUESTION_ERROR`와 이유를 반환하고 후보 생성을 진행하지 않는다. | 한 요소만 확인되는 입력에서 임의의 두 번째 요소나 후보 문항이 나오면 실패한다. | 골든 `golden_cases.yaml`, `generation_cases.yaml`, `pipeline_cases.yaml`; evals M3·M8 |
+| AC3 | 포함 | 이벤트 기반 | Aleph가 후보 문항을 제시할 때마다, 원문에서 추출한 두 요소와 연결 메커니즘이 후보 풀이에서 어떻게 응용됐는지 `ReviewResult.reason`에 기록한다. 원문의 수치·기호만 바꾼 후보는 잠정 `ReviewResult.verdict=USE`로 표시하지 않는다. | 두 요소 중 하나의 역할이나 연결 근거가 빠지면 실패한다. 전문가가 메커니즘이 응용되지 않았거나 수치·기호만 바뀌었다고 표시한 골든 케이스를 `USE`로 판정해도 실패한다. | 골든 `review_cases.yaml`, `pipeline_cases.yaml`(유사도·전이); evals 1.2절 재포장 `USE` 0건 |
+| AC4 | 포함 | 예외 대응 | 반례·정의역 누락·경계값 오류가 확인된 후보를 검토할 때, Aleph는 `ReviewResult.validity_issue=true`와 이유를 제시하고 잠정 `USE`를 추천하지 않는다. | 로그 3, 4, 6, 7, 8, 10 유형의 오류가 확인된 골든 케이스에서 결함을 놓치거나 `USE`를 추천하면 실패한다. | 골든 `review_cases.yaml`(`validity_issue`→`USE` 금지) |
+| AC5 | 포함 | 예외 대응 | 교육과정 범위를 벗어난 후보를 검토할 때, Aleph는 `ReviewResult.curriculum_issue=true`와 이유를 제시하고 잠정 `USE`를 추천하지 않는다. | 로그 9 유형의 교육과정 이탈이 확인된 골든 케이스에서 결함을 놓치거나 `USE`를 추천하면 실패한다. | 골든 `review_cases.yaml`(`curriculum_issue`→`USE` 금지) |
+| AC6 | 포함 | 상시 적용 | 실제 학생 풀이 데이터가 없으면, Aleph는 `DifficultyProfile.student_verified=true`나 실측 정답률이라고 표현한 값을 만들지 않는다. | 학생 풀이 데이터가 없는 케이스에 검증됨 표시나 실측 수치가 있으면 실패한다. | 출력 스키마에 `student_verified`·정답률 필드가 없음; evals B 묶음 0건 |
+| AC7 | 포함 | 이벤트 기반 | 후보 생성이 끝나면, Aleph는 문항·풀이와 잠정 `ReviewResult.verdict`, `reason`을 함께 제시하고 이를 최종 사용 승인으로 표시하지 않는다(`ReviewResult.approval_status=PROVISIONAL`). | 후보만 있고 풀이·검토 이유가 빠지거나 AI의 잠정 판정을 최종 승인으로 표시하면 실패한다. AI가 낸 `review_result`의 `approval_status`가 `PROVISIONAL`이 아니면 실패한다. | 골든 `review_cases.yaml`, `pipeline_cases.yaml`(`approval_status=PROVISIONAL` 고정); evals 잠정 판정 표시율 10/10 |
+| AC8 | 제외 | 이벤트 기반 | 원문·해설이 이미지와 수식·텍스트 중 한 형식 또는 두 형식의 조합으로 입력되면, Aleph는 확인 가능한 문항·수식을 읽어 동일한 풀이 요소 추출 흐름으로 처리한다. | 같은 문항의 이미지·텍스트·혼합 입력 골든 케이스에서 핵심 두 요소가 일치해야 한다. | 미구현. evals `fmt-` 케이스 PLANNED |
+| AC9 | 제외 | 예외 대응 | 원문·해설 이미지가 판독 불가이거나 이미지와 텍스트의 내용이 서로 충돌할 때, Aleph는 수식을 추측하지 않고 확인이 필요한 부분을 반환한다. | 흐리거나 서로 충돌하는 입력 골든 케이스에서 수식을 지어내면 실패한다. | 미구현. evals `clr-`·`cnf-` 케이스 PLANNED |
 
 AC3·AC4·AC5는 사람이 오류 여부를 확정한 골든 케이스를 `review_candidate`로 입력해 AI의 **잠정 검토 결과**와 대조한다. AI의 검토는 최종 사용 판정을 대신하지 않는다.
 
