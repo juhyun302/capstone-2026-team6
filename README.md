@@ -56,16 +56,32 @@
 
 | 항목 | 내용 |
 | :--- | :--- |
-| 실행 환경 | Python 3.12, Node.js 20 이상, OpenAI API 키(모델 `gpt-6-astra`) |
+| 실행 환경 | Python 3.12, Node.js 20 이상, OpenAI API 키(기본 모델 `gpt-6.1-sol`, `.env`의 `OPENAI_MODEL`) |
 | 설치 | 저장소 루트에서 `pip install -r requirements-dev.txt`, `web/`에서 `npm install` |
 | 설정 | `.env.example`을 `.env`로 복사해 `OPENAI_API_KEY`를 채웁니다. `.env`는 커밋하지 않습니다 |
 | 서버 실행 | `python scripts/run_server.py` → `http://127.0.0.1:8000` (로그인이 없으므로 localhost에만 띄웁니다) |
 | 화면 실행 | 다른 터미널에서 `cd web && npm run dev` → `http://localhost:5173` (Vite가 `/api`를 서버로 넘깁니다) |
 | 서버 없이 화면만 | `cd web && VITE_API=mock npm run dev` (모의 응답) |
 | 골든 테스트 | `python -m ruff check .` 다음 `python -m pytest -q -rs` (CI와 같은 명령, skip·xfail 0건이어야 합니다) |
-| evals 러너 | `python evals/run_evals.py --change "설명" --mode stored --judge --judge-stored tests/fixtures/evals/2026-11-12T2001-judge.json --no-record` (저장 출력으로 재채점, 모델 호출 없음) |
+| evals 러너 | 아래 「evals 다시 채점하기」 |
 
 자세한 화면 구조와 빌드 옵션은 [web/README.md](web/README.md)에 있습니다.
+
+**evals 다시 채점하기.** 저장해 둔 모델 출력과 judge 응답으로 채점하므로 API 키와 모델 호출이 필요 없습니다. `--no-record`라 결과 파일과 `history.csv`를 쓰지 않습니다.
+
+첫 실행 `2026-11-12T2001` 재현(사람 라벨로 채점, judge 일치율 8/9, M2 8/9, M3만 미달):
+
+```bash
+python evals/run_evals.py --change "재채점" --mode stored --stored tests/fixtures/evals/2026-11-12T1650-web.json tests/fixtures/evals/2026-11-12T2001-extraction.json --judge --judge-stored tests/fixtures/evals/2026-11-12T2001-judge.json --no-record
+```
+
+마지막 live 실행 `2026-11-12T2036` 재현(사람 라벨이 없는 출력이라 `2026-11-12T2001`에서 검증한 judge로 채점, M2 9/9, M3만 미달):
+
+```bash
+python evals/run_evals.py --change "재채점" --mode stored --stored tests/fixtures/evals/2026-11-12T2036-extraction.json --judge --judge-stored tests/fixtures/evals/2026-11-12T2036-judge.json --judge-trust evals/results/2026-11-12T2001.json --no-record
+```
+
+`--stored`를 빼면 가장 최근 저장 출력을 씁니다. 그 출력에는 사람 라벨이 없으므로 `--judge-trust`도 주지 않으면 M2를 채점하지 못해 0/9로 나옵니다. 모델을 새로 호출하는 실행 방법은 [evals/EVAL_DESIGN.md](evals/EVAL_DESIGN.md) 4절에 있습니다.
 
 ### 3. 핵심 기능 체험 순서
 
@@ -212,6 +228,7 @@
 | 2026-11-11 | MVP 사용자 가이드 작성 안내의 항목 순서(서비스 소개, 실행 및 접속 방법, 핵심 기능 체험 순서, 기대 결과 및 확인 방법, 서비스별 추가 안내, 리뷰 기간 운영)에 맞춰 다시 정리하고, 내 문항을 텍스트로 넣는 방법을 추가 |
 | 2026-11-11 | 내 컴퓨터에서 직접 실행하는 방법(로컬 실행) 안내를 README에서 뺌. 배포 사이트 사용 방법은 그대로 |
 | 2026-11-13 | 모델을 `gpt-6-astra`에서 `gpt-6.1-sol`로 바꿈. 사용 방법은 그대로 |
+| 2026-11-18 | 평가용으로 내 컴퓨터에서 실행하기(실행 환경, 설치, 서버·화면 실행, 골든 테스트, evals 명령), AC별 확인 시나리오, 평가 산출물 위치를 다시 넣음. 배포 사이트 사용 방법은 그대로 |
 
 ## 팀 소개
 
@@ -274,4 +291,4 @@ PR 제목은 주차를 대괄호로 가장 먼저 표시한 `[N주차] 작업 �
 | evals 설계서 | [evals/EVAL_DESIGN.md](evals/EVAL_DESIGN.md) (지표·합격선·judge·러너·베이스라인), 데이터 구성 규칙은 [evals/README.md](evals/README.md) |
 | evals 데이터셋 | [evals/evalset.jsonl](evals/evalset.jsonl) 42건 |
 | judge 프롬프트 / 사람 라벨 | [evals/judge_prompt.md](evals/judge_prompt.md) / [evals/judge_labels.jsonl](evals/judge_labels.jsonl) |
-| 러너 / 결과 / 이력 | [evals/run_evals.py](evals/run_evals.py) / [evals/results/](evals/results/) / [evals/results/history.csv](evals/results/history.csv) |
+| 러너 / 결과 / 이력 | [evals/run_evals.py](evals/run_evals.py) / [evals/results/](evals/results/) / [evals/results/history.csv](evals/results/history.csv) (`judge_agreement` 칸에 사람 라벨과의 judge 일치율) |
