@@ -118,10 +118,11 @@ Evals는 모델 출력이 들어가는 단계의 품질을 여러 케이스로 �
 
 - **흐름:** evalset 로드 → v1 범위 선택(추출 단계이면서 LABELED) → 케이스별 출력 얻기 → 공통 검사(형식, M1) → `expect` 키별 코드 검사(`status`, `key_elements`, `not_contains`) → 의미 일치(`reference`, M2) → 1.1절 정의대로 지표 집계 → 리포트와 기록.
 - **출력 얻기:** 기본은 stored 모드다. 저장 출력(`tests/fixtures/evals/`)으로 채점한다. `--live-missing`은 저장 출력이 없는 케이스만, `--mode live`는 모든 케이스에서 `aleph.generation.extract_solution_idea`를 부른다. 새로 부른 출력과 judge 응답은 `tests/fixtures/evals/<실행ID>-extraction.json`, `<실행ID>-judge.json`에 저장해, 다음 stored 실행과 사람 라벨이 같은 출력을 보게 한다. 평가원 원문 텍스트는 저장소 밖 파일로 넘긴다(`--source-texts`).
+- **실행 명령:** 새로 호출해 기록하는 실행은 `python evals/run_evals.py --change "<이번에 바꾼 것>" --golden "<골든 테스트 결과>" --mode live --source-texts <저장소 밖 원문 JSON> --judge --judge-trust evals/results/2026-11-12T2001.json`이다. 저장 출력으로 기존 실행을 다시 채점하는 명령(모델 호출 없음)은 README 「evals 다시 채점하기」에 있다.
 - **의미 일치의 채점 주체:** 같은 저장 출력에 사람 라벨이 있으면 사람 라벨로 채점한다. 없으면 사람 라벨과의 일치율이 80% 이상인 judge만 쓴다. 둘 다 없으면 오류다.
 - **오류 처리:** 저장 출력 없음, 원문 없음, 처리할 수 없는 `expect` 키, judge 응답 파싱 실패는 오류로 표시하고 실패로 센다. 집계에서 빼지 않는다.
 - **리포트:** 지표별 값, 분자·분모, 목표, 충족 여부와 **케이스별 PASS/FAIL 줄**(오류 분석의 원료)을 출력한다.
-- **기록:** 실행마다 `evals/results/<YYYY-MM-DDTHHMM>.json`을 새로 만든다. 실행 정보(commit, 변경 설명, 모드, 모델, 데이터셋 버전, judge 버전, 골든 테스트 결과), 지표, 케이스별 출력과 판정, 건너뛴 케이스가 들어간다. `evals/results/history.csv`에는 한 줄을 더한다. 판정 기준 파일이나 러너, `src/`가 커밋되지 않은 상태로 돌면 commit 뒤에 `-dirty`를 붙인다.
+- **기록:** 실행마다 `evals/results/<YYYY-MM-DDTHHMM>.json`을 새로 만든다. 실행 정보(commit, 변경 설명, 모드, 모델, 데이터셋 버전, judge 버전, 골든 테스트 결과), 지표, 케이스별 출력과 판정, 건너뛴 케이스가 들어간다. `evals/results/history.csv`에는 한 줄을 더한다. `judge_agreement` 칸에는 그 실행에서 잰 사람 라벨과의 judge 일치율을 적는다. 그 실행의 출력에 사람 라벨이 없어 `--judge-trust`로 검증을 넘겨받았으면 `0.889 (넘겨받음: 2026-11-12T2001)`처럼 넘겨받은 값과 출처를 적는다(2026-11-18 추가). 판정 기준 파일이나 러너, `src/`가 커밋되지 않은 상태로 돌면 commit 뒤에 `-dirty`를 붙인다.
 - **주기:** 골든 테스트는 커밋마다(CI) 돈다. evals는 골든 테스트를 통과한 커밋에서, 프롬프트·모델을 바꿀 때와 릴리스 전에 돈다.
 - **작성:** 러너는 에이전트에 위임했다. 저장 출력에 오답 6가지와 맞는 답 1가지를 넣어 확인했고, 사람이 확인한 뒤에는 에이전트가 고치지 않는다.
 
