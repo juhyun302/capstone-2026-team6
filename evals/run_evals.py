@@ -377,12 +377,18 @@ def main():
     hist = RESULTS / 'history.csv'
     header = ['run_id', 'commit', 'change', 'mode', 'evalset_version', 'judge_version', 'golden_tests'] + list(TARGETS) + ['judge_agreement']
     new = not hist.exists()
+    if agreement is not None:
+        agreement_cell = agreement
+    elif trusted:
+        agreement_cell = f"{trusted['agreement']} (넘겨받음: {trusted['from']})"
+    else:
+        agreement_cell = ''
     with hist.open('a', encoding='utf-8', newline='') as f:
         w = csv.writer(f)
         if new:
             w.writerow(header)
         w.writerow([run_id, result['commit'], args.change, result['mode'], result['evalset_version'], result['judge_version'] or '', args.golden]
-                   + ['' if metrics[k]['value'] is None else metrics[k]['value'] for k in TARGETS] + ['' if agreement is None else agreement])
+                   + ['' if metrics[k]['value'] is None else metrics[k]['value'] for k in TARGETS] + [agreement_cell])
     print(f'  기록: evals/results/{run_id}.json, evals/results/history.csv')
 
 
