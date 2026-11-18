@@ -1,7 +1,7 @@
 # 2026-11-17 윤결 승인(2026-11-07 AI 초안을 검토).
 # 모델을 호출하지 않는다. 미리 적은 출력으로 설계, 생성, 유사도 검사, 검토의 흐름만 판정한다.
 version: 1
-review_status: DRAFT_REQUIRES_HUMAN_REVIEW
+review_status: HUMAN_APPROVED
 base_commit: b788f0c9e8f69e847ba5733ef60d30ab1f548910
 function: aleph.pipeline.generate_linked_questions
 fixtures:
