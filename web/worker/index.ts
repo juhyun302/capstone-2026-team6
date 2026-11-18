@@ -150,7 +150,7 @@ export default {
       method: 'POST',
       headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: env.OPENAI_MODEL || 'gpt-6-astra', instructions: PROMPTS[prompt], input: payload.input,
+        model: env.OPENAI_MODEL || 'gpt-6.1-sol', instructions: PROMPTS[prompt], input: payload.input,
         max_output_tokens: 24000, store: false, ...(effort ? { reasoning: { effort } } : {}),
       }),
     })
