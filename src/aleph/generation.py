@@ -6,6 +6,7 @@ from typing import Callable
 
 from jsonschema import Draft7Validator
 
+from aleph.figure import FIGURE_KEYS, FIGURE_NAME, figure_mismatch, validate_figure
 from aleph.validation import _reject_constant, _unique_object, validate_solution_idea
 
 _HERE = Path(__file__).parent
@@ -18,7 +19,9 @@ _PROMPT_START = "<!-- prompt:start -->"
 _PROMPT_END = "<!-- prompt:end -->"
 _CONDITIONS = ("intended_use", "target_level", "curriculum_scope")
 
-Complete = Callable[[str, str], str]
+# complete(system, user) -> text; complete(system, user, images) when a figure must be seen,
+# with images as PNG data URLs.
+Complete = Callable[..., str]
 
 
 def load_prompt(name: str) -> str:
@@ -34,8 +37,12 @@ def _candidate_error(code, reason):
             "candidate_question": None}
 
 
-def validate_candidate_question(raw_output: str) -> dict:
-    """Return a structural result; OK says nothing about mathematical validity."""
+def validate_candidate_question(raw_output: str, *, plan: dict | None = None) -> dict:
+    """Return a structural result; OK says nothing about mathematical validity.
+
+    A figure must be drawable (FIGURE_INVALID) and match the statement and, when given, the
+    plan's figure decision (FIGURE_MISMATCH). Whether it matches the mathematics is the review's.
+    """
     if not isinstance(raw_output, str):
         raise TypeError("raw_output must be a string")
 
@@ -47,8 +54,16 @@ def validate_candidate_question(raw_output: str) -> dict:
 
     if not _VALIDATOR.is_valid(candidate):
         return _candidate_error("SCHEMA_INVALID", "출력이 후보 문항 스키마의 키, 타입 또는 값 제약을 위반했습니다.")
-    if not all(value.strip() for value in candidate.values()):
+    if not candidate["statement"].strip() or not candidate["solution"].strip():
         return _candidate_error("EMPTY_TEXT", "공백만 있는 문자열을 문항이나 풀이로 사용할 수 없습니다.")
+    for key in FIGURE_KEYS:
+        if candidate.get(key) is not None:
+            problem = validate_figure(candidate[key])
+            if problem:
+                return _candidate_error("FIGURE_INVALID", f"{FIGURE_NAME[key]} 명세가 규칙을 어겼습니다: {problem}.")
+    mismatch = figure_mismatch(candidate, plan)
+    if mismatch:
+        return _candidate_error("FIGURE_MISMATCH", mismatch)
 
     return {"status": "OK", "error_code": None, "reason": None, "candidate_question": candidate}
 
@@ -67,11 +82,16 @@ def _source_text(source_question: dict) -> dict:
     return source
 
 
-def _first_valid(complete: Complete, system: str, user: str, validate) -> dict:
+def _call(complete: Complete, system: str, user: str, images=None) -> str:
+    """Send images only when there are some, so a text-only Complete keeps working."""
+    return complete(system, user, list(images)) if images else complete(system, user)
+
+
+def _first_valid(complete: Complete, system: str, user: str, validate, images=None) -> dict:
     """Retry a malformed output once; a missing-information result is final."""
-    result = validate(complete(system, user))
+    result = validate(_call(complete, system, user, images))
     if result["status"] == "OUTPUT_ERROR":
-        result = validate(complete(system, user))
+        result = validate(_call(complete, system, user, images))
     return result
 
 

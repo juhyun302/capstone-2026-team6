@@ -29,9 +29,16 @@ def openai_complete(model: str, *, reasoning_effort: str | None = None, client=N
         client = OpenAI(timeout=900, max_retries=1)
     options = {"reasoning": {"effort": reasoning_effort}} if reasoning_effort else {}
 
-    def complete(system: str, user: str) -> str:
+    def complete(system: str, user: str, images: list | None = None) -> str:
+        """images are PNG data URLs; the model sees them after the JSON text."""
+        content = user
+        if images:
+            content = [{"role": "user", "content": [
+                {"type": "input_text", "text": user},
+                *({"type": "input_image", "image_url": image, "detail": "high"} for image in images),
+            ]}]
         response = client.responses.create(
-            model=model, instructions=system, input=user,
+            model=model, instructions=system, input=content,
             max_output_tokens=_MAX_OUTPUT_TOKENS, store=False, **options,
         )
         if response.status == "incomplete":

@@ -48,9 +48,9 @@ export function ResultBar({ result, candidates }: { result: GenerationResult; ca
     setTimeout(() => setCopy('idle'), 2500)
   }
 
-  function downloadApproved() {
+  async function downloadApproved() {
     const now = new Date()
-    saveFile(approvedFileName(now), approvedFile(result, approved, now))
+    saveFile(approvedFileName(now), await approvedFile(result, approved, now))
   }
 
   async function askMore() {

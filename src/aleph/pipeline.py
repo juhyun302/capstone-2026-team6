@@ -9,7 +9,6 @@ from jsonschema import Draft7Validator
 
 from aleph.generation import (
     Complete,
-    _first_valid,
     check_generation_request,
     extract_solution_idea,
     load_prompt,
@@ -112,13 +111,23 @@ def _design(complete: Complete, design_input: dict, count: int) -> dict:
     return designed
 
 
+_FIGURE_ERRORS = ("FIGURE_INVALID", "FIGURE_MISMATCH")
+
+
 def _draft(complete: Complete, source: dict, idea: dict, conditions: dict, plans: list,
            plan: dict) -> dict:
+    """Retry a malformed draft once; a broken figure is retried with the rule it broke."""
     siblings = [other for other in plans if other["id"] != plan["id"]]
-    user = json.dumps({"source_question": source, "solution_idea": idea, "plan": plan,
-                       "sibling_plans": siblings, **conditions}, ensure_ascii=False)
-    return _first_valid(complete, load_prompt("generate_candidate"), user,
-                        validate_candidate_question)
+    draft_input = {"source_question": source, "solution_idea": idea, "plan": plan,
+                   "sibling_plans": siblings, **conditions}
+    system = load_prompt("generate_candidate")
+    validate = partial(validate_candidate_question, plan=plan)
+    drafted = validate(complete(system, json.dumps(draft_input, ensure_ascii=False)))
+    if drafted["status"] == "OUTPUT_ERROR":
+        if drafted["error_code"] in _FIGURE_ERRORS:
+            draft_input = {**draft_input, "previous_error": drafted["reason"]}
+        drafted = validate(complete(system, json.dumps(draft_input, ensure_ascii=False)))
+    return drafted
 
 
 def _surface_checks(source_problem: str, statements: list, existing: list) -> list:
@@ -149,7 +158,8 @@ def _design_failure(designed: dict, idea: dict) -> dict:
 
 
 def _draft_and_review(request: dict, source: dict, conditions: dict, idea: dict, plans: list,
-                      complete: Complete, workers: int, existing: list) -> dict:
+                      complete: Complete, workers: int, existing: list,
+                      render_figure=None) -> dict:
     """Return every planned candidate; only reviewed ones carry a question to show (AC7)."""
     with ThreadPoolExecutor(max_workers=workers) as pool:
         drafts = list(pool.map(partial(_draft, complete, source, idea, conditions, plans), plans))
@@ -164,7 +174,8 @@ def _draft_and_review(request: dict, source: dict, conditions: dict, idea: dict,
             {"source_question": request["source_question"],
              "candidate_question": drafts[index]["candidate_question"],
              "curriculum_scope": conditions["curriculum_scope"]},
-            complete, solution_idea=idea, surface_check=checks[index])
+            complete, solution_idea=idea, surface_check=checks[index],
+            render_figure=render_figure)
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         reviews = list(pool.map(review, range(len(plans))))
@@ -191,8 +202,12 @@ def _draft_and_review(request: dict, source: dict, conditions: dict, idea: dict,
 
 
 def generate_linked_questions(request: dict, complete: Complete, *, count: int = 3,
-                              workers: int = 3) -> dict:
-    """Extract the SolutionIdea, then design, draft and review count candidates."""
+                              workers: int = 3, render_figure=None) -> dict:
+    """Extract the SolutionIdea, then design, draft and review count candidates.
+
+    render_figure(figure) -> PNG data URL lets the blind solver see a statement figure; without
+    it a candidate with a statement figure stops before review (FIGURE_UNRENDERED).
+    """
     _check_count(count)
     source, conditions = check_generation_request(request)
 
@@ -206,11 +221,11 @@ def generate_linked_questions(request: dict, complete: Complete, *, count: int =
     if designed["status"] != "OK":
         return _design_failure(designed, idea)
     return _draft_and_review(request, source, conditions, idea, designed["design"]["plans"],
-                             complete, workers, [])
+                             complete, workers, [], render_figure)
 
 
 def generate_more_questions(request: dict, solution_idea: dict, existing: list, complete: Complete,
-                            *, count: int = 2, workers: int = 3) -> dict:
+                            *, count: int = 2, workers: int = 3, render_figure=None) -> dict:
     """Add candidates on an extracted SolutionIdea, away from the questions already made."""
     _check_count(count)
     if not existing or len(existing) + count > MAX_TOTAL_CANDIDATES:
@@ -225,4 +240,4 @@ def generate_more_questions(request: dict, solution_idea: dict, existing: list, 
     if designed["status"] != "OK":
         return _design_failure(designed, solution_idea)
     return _draft_and_review(request, source, conditions, solution_idea, designed["design"]["plans"],
-                             complete, workers, list(existing))
+                             complete, workers, list(existing), render_figure)

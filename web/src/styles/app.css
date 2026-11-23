@@ -332,6 +332,18 @@
 .cand__trace { padding-left: 1.4em; display: grid; gap: var(--space-2xs); font-size: var(--text-sm); color: var(--color-ink-2); }
 .cand__trace li::marker { color: var(--color-accent); font-weight: 600; }
 .cand__decide { display: flex; align-items: center; gap: var(--space-xs); flex-wrap: wrap; }
+
+/* A figure: black on white paper in both themes, as it will be printed */
+.fig { display: grid; gap: var(--space-2xs); margin: 0; justify-items: start; min-width: 0; }
+.fig__paper { max-width: 100%; padding: var(--space-sm); background: #fff; border-radius: var(--radius-sm, 4px); box-shadow: 0 0 0 1px var(--color-rule); overflow-x: auto; }
+.fig__paper svg { display: block; width: var(--fig-w, auto); max-width: 100%; height: auto; }
+.fig--loading { width: min(100%, 320px); aspect-ratio: 4 / 3; background: var(--color-paper-2); border-radius: var(--radius-sm, 4px); }
+.fig__meta { display: flex; align-items: baseline; gap: var(--space-2xs) var(--space-md); flex-wrap: wrap; font-size: var(--text-sm); }
+.fig__check { color: var(--color-muted); }
+.fig__check--warn { color: var(--color-revise); }
+.fig__files { display: inline-flex; gap: var(--space-md); flex-wrap: wrap; }
+.fig__error { font-size: var(--text-sm); color: var(--color-reject); }
+.sheet__solution + .fig { margin-top: var(--space-sm); }
 .decide[data-verdict="USE"] { --hover-ink: var(--color-use); }
 .decide[data-verdict="REVISE"] { --hover-ink: var(--color-revise); }
 .decide[data-verdict="HOLD"] { --hover-ink: var(--color-hold); }

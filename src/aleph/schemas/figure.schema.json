@@ -1,0 +1,219 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FigureSpec",
+  "description": "후보 문항이나 풀이에 붙이는 평면 그림(함수 그래프, 평면도형)의 명세. 좌표는 수학 좌표이며, 선 두께·점선·화살촉·점 크기·글자 크기는 그림 제작 규격(figlib_tikz.py)대로 렌더러가 정한다. 식과 좌표의 계산 가능 여부, 참조, 점이 곡선 위에 있는지는 aleph.figure.check_figure가 따로 검사한다.",
+  "type": "object",
+  "properties": {
+    "width_mm": {"type": "number", "minimum": 65, "maximum": 90, "description": "대지 너비(mm)."},
+    "height_mm": {"type": "number", "minimum": 30, "maximum": 120, "description": "대지 높이(mm). aspect가 free일 때만 쓰고 필요하다."},
+    "aspect": {"enum": ["equal", "free"], "description": "equal: x·y 1단위 길이가 같다(도형). free: 대지에 맞춰 따로 늘인다(그래프)."},
+    "view": {
+      "type": "object",
+      "properties": {"x": {"$ref": "#/definitions/range"}, "y": {"$ref": "#/definitions/range"}},
+      "required": ["x", "y"],
+      "additionalProperties": false,
+      "description": "대지에 들어갈 수학 좌표 범위. 곡선과 색칠은 이 범위에서 잘린다."
+    },
+    "points": {
+      "type": "object",
+      "propertyNames": {"$ref": "#/definitions/name"},
+      "additionalProperties": {"$ref": "#/definitions/pair"},
+      "maxProperties": 40,
+      "description": "이름 붙인 점. 다른 항목에서 이름으로 가리킨다."
+    },
+    "items": {"type": "array", "minItems": 1, "maxItems": 80, "items": {"$ref": "#/definitions/item"}}
+  },
+  "required": ["width_mm", "aspect", "view", "items"],
+  "additionalProperties": false,
+  "definitions": {
+    "num": {"anyOf": [{"type": "number"}, {"type": "string", "minLength": 1, "maxLength": 80}],
+            "description": "수 또는 x 없는 식(예: \"sqrt(3)\", \"pi/2\")."},
+    "pair": {"type": "array", "items": {"$ref": "#/definitions/num"}, "minItems": 2, "maxItems": 2},
+    "range": {"type": "array", "items": {"$ref": "#/definitions/num"}, "minItems": 2, "maxItems": 2},
+    "name": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_']{0,7}$"},
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,15}$"},
+    "pos": {"anyOf": [{"$ref": "#/definitions/name"}, {"$ref": "#/definitions/pair"}],
+            "description": "점 이름 또는 [x, y]."},
+    "expr": {"type": "string", "minLength": 1, "maxLength": 200, "description": "x에 대한 식."},
+    "tex": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[^$]+$",
+            "description": "그림 글자. $ 없이 LaTeX 수식으로 쓴다."},
+    "style": {"enum": ["main", "aux", "dashed"]},
+    "position": {"enum": ["center", "above", "below", "left", "right",
+                          "above left", "above right", "below left", "below right"]},
+    "on": {"type": "array", "items": {"$ref": "#/definitions/id"}, "minItems": 1, "maxItems": 4, "uniqueItems": true},
+    "piece": {
+      "type": "object",
+      "properties": {"expr": {"$ref": "#/definitions/expr"}, "domain": {"$ref": "#/definitions/range"}},
+      "required": ["expr", "domain"],
+      "additionalProperties": false
+    },
+    "item": {
+      "type": "object",
+      "properties": {"type": {"enum": ["axes", "curve", "piecewise", "segment", "polygon", "circle", "arc",
+                                       "dot", "guide", "shade", "shade_polygon", "label", "tick",
+                                       "point_names", "callout", "same_length", "right_angle", "angle"]}},
+      "required": ["type"],
+      "allOf": [
+        {"if": {"properties": {"type": {"const": "axes"}}}, "then": {"$ref": "#/definitions/axes"}},
+        {"if": {"properties": {"type": {"const": "curve"}}}, "then": {"$ref": "#/definitions/curve"}},
+        {"if": {"properties": {"type": {"const": "piecewise"}}}, "then": {"$ref": "#/definitions/piecewise"}},
+        {"if": {"properties": {"type": {"const": "segment"}}}, "then": {"$ref": "#/definitions/segment"}},
+        {"if": {"properties": {"type": {"const": "polygon"}}}, "then": {"$ref": "#/definitions/polygon"}},
+        {"if": {"properties": {"type": {"const": "circle"}}}, "then": {"$ref": "#/definitions/circle"}},
+        {"if": {"properties": {"type": {"const": "arc"}}}, "then": {"$ref": "#/definitions/arc"}},
+        {"if": {"properties": {"type": {"const": "dot"}}}, "then": {"$ref": "#/definitions/dot"}},
+        {"if": {"properties": {"type": {"const": "guide"}}}, "then": {"$ref": "#/definitions/guide"}},
+        {"if": {"properties": {"type": {"const": "shade"}}}, "then": {"$ref": "#/definitions/shade"}},
+        {"if": {"properties": {"type": {"const": "shade_polygon"}}}, "then": {"$ref": "#/definitions/shade_polygon"}},
+        {"if": {"properties": {"type": {"const": "label"}}}, "then": {"$ref": "#/definitions/label"}},
+        {"if": {"properties": {"type": {"const": "tick"}}}, "then": {"$ref": "#/definitions/tick"}},
+        {"if": {"properties": {"type": {"const": "point_names"}}}, "then": {"$ref": "#/definitions/point_names"}},
+        {"if": {"properties": {"type": {"const": "callout"}}}, "then": {"$ref": "#/definitions/callout"}},
+        {"if": {"properties": {"type": {"const": "same_length"}}}, "then": {"$ref": "#/definitions/same_length"}},
+        {"if": {"properties": {"type": {"const": "right_angle"}}}, "then": {"$ref": "#/definitions/right_angle"}},
+        {"if": {"properties": {"type": {"const": "angle"}}}, "then": {"$ref": "#/definitions/angle"}}
+      ]
+    },
+    "axes": {
+      "type": "object",
+      "properties": {"type": {"const": "axes"}, "x": {"$ref": "#/definitions/range"}, "y": {"$ref": "#/definitions/range"},
+                     "labels": {"type": "boolean"}},
+      "required": ["type", "x", "y"],
+      "additionalProperties": false,
+      "description": "화살표 좌표축. x축은 (x[0],0)에서 (x[1],0)까지. labels가 false가 아니면 x, y, O를 규격 자리에 단다."
+    },
+    "curve": {
+      "type": "object",
+      "properties": {"type": {"const": "curve"}, "id": {"$ref": "#/definitions/id"}, "expr": {"$ref": "#/definitions/expr"},
+                     "domain": {"$ref": "#/definitions/range"}, "style": {"$ref": "#/definitions/style"}},
+      "required": ["type", "expr", "domain"],
+      "additionalProperties": false
+    },
+    "piecewise": {
+      "type": "object",
+      "properties": {"type": {"const": "piecewise"}, "id": {"$ref": "#/definitions/id"},
+                     "pieces": {"type": "array", "items": {"$ref": "#/definitions/piece"}, "minItems": 2, "maxItems": 8},
+                     "style": {"$ref": "#/definitions/style"}},
+      "required": ["type", "pieces"],
+      "additionalProperties": false,
+      "description": "이어지는 구간별 함수를 선 하나로. 끊어지는 함수는 curve 여러 개와 dot으로 그린다."
+    },
+    "segment": {
+      "type": "object",
+      "properties": {"type": {"const": "segment"}, "from": {"$ref": "#/definitions/pos"}, "to": {"$ref": "#/definitions/pos"},
+                     "style": {"$ref": "#/definitions/style"}, "arrow": {"type": "boolean"}},
+      "required": ["type", "from", "to"],
+      "additionalProperties": false
+    },
+    "polygon": {
+      "type": "object",
+      "properties": {"type": {"const": "polygon"},
+                     "points": {"type": "array", "items": {"$ref": "#/definitions/pos"}, "minItems": 2, "maxItems": 20},
+                     "closed": {"type": "boolean"}, "style": {"$ref": "#/definitions/style"}},
+      "required": ["type", "points"],
+      "additionalProperties": false
+    },
+    "circle": {
+      "type": "object",
+      "properties": {"type": {"const": "circle"}, "center": {"$ref": "#/definitions/pos"}, "radius": {"$ref": "#/definitions/num"},
+                     "style": {"$ref": "#/definitions/style"}},
+      "required": ["type", "center", "radius"],
+      "additionalProperties": false
+    },
+    "arc": {
+      "type": "object",
+      "properties": {"type": {"const": "arc"}, "center": {"$ref": "#/definitions/pos"}, "radius": {"$ref": "#/definitions/num"},
+                     "from_deg": {"$ref": "#/definitions/num"}, "to_deg": {"$ref": "#/definitions/num"},
+                     "style": {"$ref": "#/definitions/style"}},
+      "required": ["type", "center", "radius", "from_deg", "to_deg"],
+      "additionalProperties": false,
+      "description": "from_deg에서 to_deg까지 시계 반대 방향 호."
+    },
+    "dot": {
+      "type": "object",
+      "properties": {"type": {"const": "dot"}, "at": {"$ref": "#/definitions/pos"}, "open": {"type": "boolean"},
+                     "on": {"$ref": "#/definitions/on"}},
+      "required": ["type", "at"],
+      "additionalProperties": false,
+      "description": "점 표시. open이 true면 빈 동그라미(포함하지 않는 끝점). on에 적은 곡선 위에 있는지 검사한다."
+    },
+    "guide": {
+      "type": "object",
+      "properties": {"type": {"const": "guide"}, "at": {"$ref": "#/definitions/pos"}, "to": {"enum": ["x", "y", "both"]},
+                     "on": {"$ref": "#/definitions/on"}},
+      "required": ["type", "at", "to"],
+      "additionalProperties": false,
+      "description": "점에서 축으로 내리는 점선."
+    },
+    "shade": {
+      "type": "object",
+      "properties": {"type": {"const": "shade"}, "upper": {"$ref": "#/definitions/expr"}, "lower": {"$ref": "#/definitions/expr"},
+                     "domain": {"$ref": "#/definitions/range"}},
+      "required": ["type", "upper", "lower", "domain"],
+      "additionalProperties": false
+    },
+    "shade_polygon": {
+      "type": "object",
+      "properties": {"type": {"const": "shade_polygon"},
+                     "points": {"type": "array", "items": {"$ref": "#/definitions/pos"}, "minItems": 3, "maxItems": 20}},
+      "required": ["type", "points"],
+      "additionalProperties": false
+    },
+    "label": {
+      "type": "object",
+      "properties": {"type": {"const": "label"}, "tex": {"$ref": "#/definitions/tex"}, "at": {"$ref": "#/definitions/pos"},
+                     "position": {"$ref": "#/definitions/position"}},
+      "required": ["type", "tex", "at"],
+      "additionalProperties": false
+    },
+    "tick": {
+      "type": "object",
+      "properties": {"type": {"const": "tick"}, "axis": {"enum": ["x", "y"]}, "value": {"$ref": "#/definitions/num"},
+                     "tex": {"$ref": "#/definitions/tex"}, "side": {"enum": ["below", "above", "left", "right"]}},
+      "required": ["type", "axis", "value"],
+      "additionalProperties": false,
+      "description": "축 위 눈금 값 글자. 기본은 x축 아래, y축 왼쪽."
+    },
+    "point_names": {
+      "type": "object",
+      "properties": {"type": {"const": "point_names"},
+                     "names": {"type": "array", "items": {"$ref": "#/definitions/name"}, "minItems": 1, "maxItems": 20, "uniqueItems": true},
+                     "center": {"$ref": "#/definitions/pos"}},
+      "required": ["type", "names"],
+      "additionalProperties": false,
+      "description": "점 이름을 똑바른 글자로, center(기본은 이 점들의 무게중심)에서 바깥쪽에 단다."
+    },
+    "callout": {
+      "type": "object",
+      "properties": {"type": {"const": "callout"}, "from": {"$ref": "#/definitions/pos"}, "to": {"$ref": "#/definitions/pos"},
+                     "bend": {"type": "number", "minimum": -6, "maximum": 6}},
+      "required": ["type", "from", "to"],
+      "additionalProperties": false,
+      "description": "가리킴 화살표. 촉은 to 쪽. bend는 휘는 정도(mm, 진행 방향 왼쪽이 +)."
+    },
+    "same_length": {
+      "type": "object",
+      "properties": {"type": {"const": "same_length"}, "from": {"$ref": "#/definitions/pos"}, "to": {"$ref": "#/definitions/pos"},
+                     "side": {"enum": ["left", "right"]}},
+      "required": ["type", "from", "to"],
+      "additionalProperties": false
+    },
+    "right_angle": {
+      "type": "object",
+      "properties": {"type": {"const": "right_angle"}, "vertex": {"$ref": "#/definitions/pos"}, "a": {"$ref": "#/definitions/pos"},
+                     "b": {"$ref": "#/definitions/pos"}},
+      "required": ["type", "vertex", "a", "b"],
+      "additionalProperties": false
+    },
+    "angle": {
+      "type": "object",
+      "properties": {"type": {"const": "angle"}, "vertex": {"$ref": "#/definitions/pos"}, "a": {"$ref": "#/definitions/pos"},
+                     "b": {"$ref": "#/definitions/pos"}, "tex": {"$ref": "#/definitions/tex"}},
+      "required": ["type", "vertex", "a", "b"],
+      "additionalProperties": false,
+      "description": "꼭짓점 vertex에서 a 쪽 반직선부터 b 쪽 반직선까지 작은 각의 호."
+    }
+  },
+  "if": {"properties": {"aspect": {"const": "free"}}},
+  "then": {"required": ["height_mm"]}
+}

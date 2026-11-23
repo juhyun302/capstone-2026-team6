@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
 import { ChevronDown } from 'lucide-react'
 import type { CandidateQuestion, GenerationResult, Verdict } from '../../api/types'
+import { FigureView } from '../../components/FigureView'
 import { MathText } from '../../components/Math'
 import { Seal } from '../../components/Seal'
 import { VERDICT_LABEL } from '../../components/Verdict'
@@ -38,6 +39,9 @@ export function PlainView({ result }: { result: GenerationResult }) {
   )
 }
 
+/** The file name a figure leaves the app with, kit style: one name per figure. */
+const figureName = (index: number, part: '문항' | '풀이') => `Aleph_후보${index + 1}_${part}`
+
 function Fold({ id, open, children }: { id: string; open: boolean; children: React.ReactNode }) {
   return (
     <div className="disclose" data-open={open} id={id}>
@@ -60,6 +64,7 @@ function Candidate({ index, candidate, busy, onDecide, onUndo }: { index: number
       </div>
       <p className="cand__verdict-note">{approvalSentence(review)}</p>
       <MathText statement text={candidate.statement} className="sheet__statement" />
+      {candidate.statement_figure && <FigureView spec={candidate.statement_figure} name={figureName(index, '문항')} label={`후보 ${index + 1} 문항 그림`} />}
       <div className="cand__tools">
         <button type="button" className="disclose-btn" aria-expanded={openSolution} aria-controls={`sol-${candidate.id}`} onClick={() => setOpenSolution((o) => !o)}>
           {openSolution ? '풀이 닫기' : '풀이 보기'}
@@ -78,6 +83,7 @@ function Candidate({ index, candidate, busy, onDecide, onUndo }: { index: number
       <div className="cand__folds">
         <Fold id={`sol-${candidate.id}`} open={openSolution}>
           <MathText text={candidate.solution} className="sheet__solution" />
+          {candidate.solution_figure && <FigureView spec={candidate.solution_figure} name={figureName(index, '풀이')} label={`후보 ${index + 1} 풀이 그림`} />}
         </Fold>
         <Fold id={`rev-${candidate.id}`} open={openReview}>
           <div className="cand__review">

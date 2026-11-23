@@ -23,10 +23,11 @@
 - 원본문항과 해설에서 `SolutionIdea.concept`, 근거 있는 `key_elements` 두 개, 두 요소의 `mechanism`을 추출한다. 현재 산출물: `src/aleph/schemas/solution_idea.schema.json`, `src/aleph/prompts/parse_query.md`.
 - `GenerationRequest`의 사용 목적과 목표 난도를 받아 두 요소의 메커니즘을 응용한 `Question(CANDIDATE)` 및 풀이를 생성한다.
 - 후보의 조건 누락·경계값·적용 조건·수학적 성립과 교육과정 문제에 관한 잠정 검토 정보와 이유를 제시한다. (로그 3, 4, 7, 8, 9, 10)
+- (초안, 팀 확정 전) 설계안이 정하면 후보 문항과 풀이에 평면 그림(좌표평면의 함수 그래프, 평면도형)을 붙인다. 그림은 구조화한 그림 명세로 만들고, 그림 제작 키트(`figlib_tikz.py`)의 규격으로 그린다. 세부 규칙은 5.2절, 수용 기준은 AC10 초안.
 
 **비포함**
 
-- 결제·판매·정산, PDF 수식 복원, 공간도형 자동 작도, 비수학 문항 생성.
+- 결제·판매·정산, PDF 수식 복원, 공간도형 자동 작도, 비수학 문항 생성. 평면 그림을 그려도 공간도형(입체)은 그리지 않는다.
 - 실제 학생 풀이 데이터 없이 정답률이나 체감 난도를 확정하는 기능.
 - 모든 수학 영역에서 전문가 검수 없이 상용 품질을 보장한다는 주장.
 
@@ -40,6 +41,26 @@
 - `review_candidate` — 입력: `{source_question: {problem: {image?, text?}, explanation: {image?, text?}}, candidate_question: {statement, solution}, curriculum_scope}` → 출력: `{review_result: {validity_issue, curriculum_issue, verdict, reason, reviewer_type, approval_status}}`. 이미 만들어진 후보를 새로 생성하지 않고 검토만 한다. 사람이 결함 여부를 확정한 후보를 넣어 AC3·AC4·AC5를 판정하는 입구다.
 - 생성 직후의 `review_result`는 AI가 제시하는 **잠정 검토 기록**이다. `verdict`가 `USE`여도 사람의 검수 통과를 뜻하지 않는다. AI가 낸 `review_result`의 `approval_status`는 항상 `PROVISIONAL`이며, `APPROVED`는 수학 강사의 최종 사용 승인에만 쓴다.
 - 원문 해설에서 근거 있는 핵심 요소 두 개나 그 연결 메커니즘을 확인할 수 없을 때 → `QUESTION_ERROR`와 이유를 반환하고 후보를 만들지 않는다. 이미지가 판독 불가이거나 이미지·텍스트 내용이 충돌하면 추측하지 않고 확인이 필요한 부분을 반환한다. (AC2, AC9)
+- (초안) `candidate_question`에는 그림이 있을 때 `statement_figure?`(문항의 일부인 그림), `solution_figure?`(풀이 그림)가 더해진다. 두 값은 그림 명세(`src/aleph/schemas/figure.schema.json`)이며, 없거나 `null`이면 그림이 없다.
+
+### 5.2. 그림 명세 검증 — AC10 초안의 세부 규칙
+
+> 초안이다. 팀이 AC10을 확정하기 전에는 이 절의 규칙을 완료 기준으로 쓰지 않는다.
+
+그림 명세는 좌표를 수학 좌표로 적는다. 대지 너비(65~90mm), 좌표 범위(`view`), 이름 붙인 점(`points`), 그릴 것(`items`: 축, 곡선, 구간별 함수, 선분, 다각형, 원·호, 점 표시, 축으로 내리는 점선, 색칠, 글자, 눈금 값, 점 이름, 가리킴 화살표, 같은 길이·직각·각 표시)을 담는다. 선 두께, 점선, 화살촉, 점 크기, 글자 크기와 자리는 명세에 없고, 렌더러(`web/src/figure/render.ts`)가 그림 제작 키트 규격대로 정한다.
+
+`validate_candidate_question(raw_output, *, plan=None)`은 기존 검사(1~3: `JSON_INVALID`, `SCHEMA_INVALID`, `EMPTY_TEXT`) 다음에 아래를 차례로 검사하고, 처음 확인한 오류 하나를 `OUTPUT_ERROR`로 반환한다.
+
+| 검사 순서 | 조건 | 오류 코드 |
+|---|---|---|
+| 4 | 그림 명세가 `figure.schema.json`을 어기거나, 의미 검사(`aleph.figure.check_figure`)를 통과하지 못한다. 의미 검사는 식과 좌표를 읽을 수 있는지, 곡선·색칠의 식이 정의역 전체(64개 표본)에서 계산되는지, 구간별 함수가 이어지는지, 참조한 점과 곡선이 있는지, `on`에 적은 곡선 위에 점이 있는지(허용 오차는 `view` 높이의 0.2%), 색칠의 위 경계가 아래 경계보다 위에 있는지, 직각 표시가 실제로 직각인지 본다. | `FIGURE_INVALID` |
+| 5 | 문항 그림이 있는데 `statement`에 "그림"이 없거나, `statement`가 그림을 가리키는데 문항 그림이 없다. `plan`이 있으면 `plan.figure`(`none`, `statement`, `solution`, `both`, 없으면 `none`)가 정한 그림이 없거나, 문항 그림을 정하지 않았는데 있다. | `FIGURE_MISMATCH` |
+
+- 생성 단계는 4·5번 오류일 때 다시 요청하면서 입력에 `previous_error`(어긴 규칙)를 더한다.
+- 블라인드 풀이는 문항 그림을 그린 PNG로만 보고, 그림 명세는 받지 않는다. 입력 JSON은 그대로 `{statement, curriculum_scope}`다. 검토는 그림 명세와 그린 그림을 함께 받는다(`figure_images`에 순서).
+- 그림을 그릴 수 없는 실행 환경(현재 Python 서버)에서는 문항 그림이 있는 후보를 블라인드 풀이 전에 `FIGURE_UNRENDERED`로 멈춘다. 그림을 보지 않고 푼 결과로 검토하지 않는다.
+- 글자와 선 사이 0.3mm 간격과 대지 크기는 렌더러가 그릴 때 검사해 화면에 보고한다. 구조 검사의 통과 조건이 아니다.
+- 이 검사의 통과는 그림이 그려질 수 있다는 뜻이다. 그림이 문항 조건과 수학적으로 맞는지는 검토 단계와 사람이 판정한다.
 
 ### 5.1. 풀이 아이디어 출력 검증 — AC1·AC2의 세부 규칙
 
@@ -77,6 +98,9 @@
 | AC7 | 포함 | 이벤트 기반 | 후보 생성이 끝나면, Aleph는 문항·풀이와 잠정 `ReviewResult.verdict`, `reason`을 함께 제시하고 이를 최종 사용 승인으로 표시하지 않는다(`ReviewResult.approval_status=PROVISIONAL`). | 후보만 있고 풀이·검토 이유가 빠지거나 AI의 잠정 판정을 최종 승인으로 표시하면 실패한다. AI가 낸 `review_result`의 `approval_status`가 `PROVISIONAL`이 아니면 실패한다. | 골든 `review_cases.yaml`, `pipeline_cases.yaml`(`approval_status=PROVISIONAL` 고정); evals 잠정 판정 표시율 10/10 |
 | AC8 | 제외 | 이벤트 기반 | 원문·해설이 이미지와 수식·텍스트 중 한 형식 또는 두 형식의 조합으로 입력되면, Aleph는 확인 가능한 문항·수식을 읽어 동일한 풀이 요소 추출 흐름으로 처리한다. | 같은 문항의 이미지·텍스트·혼합 입력 골든 케이스에서 핵심 두 요소가 일치해야 한다. | 미구현. evals `fmt-` 케이스 PLANNED |
 | AC9 | 제외 | 예외 대응 | 원문·해설 이미지가 판독 불가이거나 이미지와 텍스트의 내용이 서로 충돌할 때, Aleph는 수식을 추측하지 않고 확인이 필요한 부분을 반환한다. | 흐리거나 서로 충돌하는 입력 골든 케이스에서 수식을 지어내면 실패한다. | 미구현. evals `clr-`·`cnf-` 케이스 PLANNED |
+| AC10 (초안) | 제외 | 이벤트 기반 | 후보에 그림을 붙일 때, Aleph는 5.2절 검사를 통과한 그림 명세만 그림 제작 규격으로 그리고, 문항 그림은 블라인드 풀이에 그린 그림으로만 보여 주며, 그림과 본문·풀이가 어긋난 후보를 잠정 `USE`로 표시하지 않는다. | 곡선 밖의 점을 곡선 위의 점으로 적은 명세나, 본문이 그림을 가리키는데 그림이 없는 후보가 검사를 통과하면 실패한다. 블라인드 풀이 입력에 그림 명세가 들어가면 실패한다. 그림과 본문이 어긋난다고 사람이 확정한 골든 케이스를 `USE`로 판정하면 실패한다. | 초안 테스트 `tests/test_figure.py`(사람 검토 전). 그림과 본문이 어긋난 후보의 검토 골든 케이스와 evals 없음 |
+
+AC10은 2026-11-22 그림 생성 기능과 함께 쓴 **초안**이며 MVP 이후에 더한 기능이다. 수용 기준과 판정 예시는 팀이 확정해야 하고, `tests/test_figure.py`의 케이스도 사람 검토 전이다. 그림과 본문이 어긋난 후보를 검토 단계가 잡아내는지는 아직 측정하지 않았다.
 
 AC3·AC4·AC5는 사람이 오류 여부를 확정한 골든 케이스를 `review_candidate`로 입력해 AI의 **잠정 검토 결과**와 대조한다. AI의 검토는 최종 사용 판정을 대신하지 않는다.
 

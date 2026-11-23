@@ -30,7 +30,8 @@
             "uniqueItems": true,
             "description": "원문과 실질적으로 달라진 항목. 서로 다른 세 가지 이상."
           },
-          "added_judgment": {"type": "string", "minLength": 1, "pattern": "^[^一-鿿]*$", "description": "두 요소가 쓰이는 핵심 단계 안에 원문에 없던 판단."}
+          "added_judgment": {"type": "string", "minLength": 1, "pattern": "^[^一-鿿]*$", "description": "두 요소가 쓰이는 핵심 단계 안에 원문에 없던 판단."},
+          "figure": {"enum": ["none", "statement", "solution", "both"], "description": "그림을 쓸 곳. none: 없음, statement: 문항 그림, solution: 풀이 그림, both: 둘 다. 없으면 none으로 본다."}
         },
         "required": ["id", "object", "condition_form", "target", "representation", "solution_route", "changed_axes", "added_judgment"],
         "additionalProperties": false

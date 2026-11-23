@@ -6,6 +6,7 @@ from pathlib import Path
 
 from jsonschema import Draft7Validator
 
+from aleph.figure import FIGURE_KEYS
 from aleph.generation import (
     Complete,
     _first_valid,
@@ -101,9 +102,17 @@ def _failed(result: dict, solution_idea) -> dict:
             "reason": result["reason"], "solution_idea": solution_idea, "review_result": None}
 
 
+_UNRENDERED = ("이 실행 환경에서는 문항 그림을 그릴 수 없어, 그림을 보고 푸는 독립 풀이를 하지 못했습니다. "
+               "그림을 그리는 브라우저 빌드에서 실행해 주세요.")
+
+
 def review_candidate(request: dict, complete: Complete, *, solution_idea: dict | None = None,
-                     surface_check: dict | None = None) -> dict:
-    """Pass a confirmed idea to avoid a second extraction of the same source."""
+                     surface_check: dict | None = None, render_figure=None) -> dict:
+    """Pass a confirmed idea to avoid a second extraction of the same source.
+
+    render_figure(figure) returns a PNG data URL. The blind solver sees the statement figure
+    only as that picture, never as its spec, so it reads what a student would read.
+    """
     scope = request.get("curriculum_scope")
     if not isinstance(scope, str) or not scope.strip():
         raise ValueError("curriculum_scope is required")
@@ -118,10 +127,21 @@ def review_candidate(request: dict, complete: Complete, *, solution_idea: dict |
     else:
         idea = _confirmed_idea(solution_idea)
 
+    pictures = {}
+    for key in FIGURE_KEYS:
+        if candidate.get(key) is None:
+            continue
+        if render_figure is not None:
+            pictures[key] = render_figure(candidate[key])
+        elif key == "statement_figure":
+            return _failed({"status": "OUTPUT_ERROR", "error_code": "FIGURE_UNRENDERED",
+                            "reason": _UNRENDERED}, idea)
+
     blind_user = json.dumps({"statement": candidate["statement"], "curriculum_scope": scope},
                             ensure_ascii=False)
+    blind_images = [pictures["statement_figure"]] if "statement_figure" in pictures else None
     solved = _first_valid(complete, load_prompt("solve_candidate"), blind_user,
-                          validate_blind_solution)
+                          validate_blind_solution, blind_images)
     if solved["status"] != "OK":
         return _failed(solved, idea)
 
@@ -132,11 +152,14 @@ def review_candidate(request: dict, complete: Complete, *, solution_idea: dict |
                     "curriculum_scope": scope}
     if surface_check is not None:
         review_input["surface_check"] = surface_check
+    if pictures:
+        review_input["figure_images"] = list(pictures)
     copy_suspected = bool(surface_check and surface_check.get("copy_suspected"))
     review_user = json.dumps(review_input, ensure_ascii=False)
     reviewed = _first_valid(complete, load_prompt("review_candidate"), review_user,
                             partial(validate_review_output, blind_clean=blind_clean,
-                                    copy_suspected=copy_suspected))
+                                    copy_suspected=copy_suspected),
+                            list(pictures.values()) or None)
     if reviewed["status"] != "OK":
         return _failed(reviewed, idea)
 
@@ -155,7 +178,7 @@ def review_candidate(request: dict, complete: Complete, *, solution_idea: dict |
     }
 
 
-def generate_linked_question(request: dict, complete: Complete) -> dict:
+def generate_linked_question(request: dict, complete: Complete, *, render_figure=None) -> dict:
     """Return a candidate only together with its provisional review (AC7)."""
     drafted = generate_candidate(request, complete)
     if drafted["status"] != "OK":
@@ -165,6 +188,6 @@ def generate_linked_question(request: dict, complete: Complete) -> dict:
         {"source_question": request["source_question"],
          "candidate_question": drafted["candidate_question"],
          "curriculum_scope": request["curriculum_scope"]},
-        complete, solution_idea=drafted["solution_idea"])
+        complete, solution_idea=drafted["solution_idea"], render_figure=render_figure)
     shown = drafted["candidate_question"] if reviewed["status"] == "OK" else None
     return {**reviewed, "candidate_question": shown}

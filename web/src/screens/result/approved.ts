@@ -13,8 +13,13 @@ export function approvedOf(candidates: CandidateQuestion[]): Approved[] {
   return candidates.flatMap((candidate, index) => (candidate.review_result.approval_status === 'APPROVED' ? [{ number: index + 1, candidate }] : []))
 }
 
+const figureNote = (candidate: CandidateQuestion, key: 'statement_figure' | 'solution_figure') =>
+  candidate[key] ? `\n\n[그림: ${key === 'statement_figure' ? '문항' : '풀이'} 그림은 파일로 받기나 그림 아래 버튼으로 받습니다]` : ''
+
 export function approvedText(approved: Approved[]) {
-  return approved.map(({ number, candidate }) => `[후보 ${number}]\n${candidate.statement}\n\n[풀이]\n${candidate.solution}`).join('\n\n')
+  return approved
+    .map(({ number, candidate }) => `[후보 ${number}]\n${candidate.statement}${figureNote(candidate, 'statement_figure')}\n\n[풀이]\n${candidate.solution}${figureNote(candidate, 'solution_figure')}`)
+    .join('\n\n')
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
@@ -36,14 +41,22 @@ math { font-size: 1.1em; }
 .math-line { display: block; }
 .math-conds { display: block; margin: 12px 0; padding: 10px 14px; border: 1px solid #5b6575; }
 .math-cond { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 6px; }
+figure { margin: 16px 0 0; }
+figure svg { display: block; max-width: 100%; height: auto; }
 @media print { main { max-width: none; padding: 0; } section { break-inside: avoid; } }
 `
 
-/** A complete page with no outside files: formulas are MathML, which browsers draw themselves. */
-export function approvedFile(result: GenerationResult, approved: Approved[], now: Date) {
+/** A complete page with no outside files: formulas are MathML, which browsers draw themselves; figures are inline SVG. */
+export async function approvedFile(result: GenerationResult, approved: Approved[], now: Date) {
   const paragraph = (text: string) => `<p>${mathHtml(text, 'mathml')}</p>`
   const question = (text: string) => `<p>${statementHtml(text, 'mathml')}</p>`
-  const items = approved.map(({ number, candidate }) => `<section><h2>후보 ${number}</h2>${question(candidate.statement)}<h3>풀이</h3>${paragraph(candidate.solution)}</section>`)
+  const hasFigure = approved.some(({ candidate }) => candidate.statement_figure || candidate.solution_figure)
+  const render = hasFigure ? (await import('../../figure/render')).renderFigure : null
+  const figure = (spec: CandidateQuestion['statement_figure'], uid: string, title: string) =>
+    spec && render ? `<figure>${render(spec, { uid, title }).svg}</figure>` : ''
+  const items = approved.map(({ number, candidate }) =>
+    `<section><h2>후보 ${number}</h2>${question(candidate.statement)}${figure(candidate.statement_figure, `q${number}`, `후보 ${number} 문항 그림`)}` +
+    `<h3>풀이</h3>${paragraph(candidate.solution)}${figure(candidate.solution_figure, `s${number}`, `후보 ${number} 풀이 그림`)}</section>`)
   const meta = `${now.toLocaleString('ko-KR')} 저장 · 교육과정 범위 ${escapeHtml(result.request.curriculum_scope)} · 사용 승인 ${approved.length}개`
   return `<!doctype html>
 <html lang="ko">
