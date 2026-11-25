@@ -2,9 +2,9 @@
 
 | 항목 | 값 |
 |---|---|
-| `prompt_version` | 4 |
+| `prompt_version` | 5 |
 | 짝이 되는 스키마 | `src/aleph/schemas/review_output.schema.json` |
-| 입력 | `source_question`, `solution_idea`, `candidate_question`, `blind_solution`, `curriculum_scope`를 담은 JSON |
+| 입력 | `source_question`, `solution_idea`, `candidate_question`, `blind_solution`, `curriculum_scope`를 담은 JSON. 후보에 그림이 있으면 `candidate_question`에 그림 명세가 들고, 그린 그림 PNG가 `figure_images`에 적힌 순서로 함께 온다. |
 | 전송 범위 | `src/aleph/review.py`가 아래 전송부의 시작·끝 마커 사이만 시스템 프롬프트로 읽는다. |
 | 상태 | 초안. 결함 탐지율을 측정하지 않았다. |
 
@@ -24,6 +24,12 @@ validity_issue:
 - candidate_question.solution과 blind_solution의 결론을 대조한다. 두 답이 같아도 후보 풀이의 논증이 빠졌으면 결함이다.
 - blind_solution의 status가 solved가 아니거나 issues가 있으면 그 내용이 실제 결함인지 판단하고 근거를 쓴다.
 - 하나라도 확인되면 true다.
+
+그림:
+- candidate_question에 statement_figure나 solution_figure가 있으면 그 명세와 함께 그린 그림 이미지가 figure_images에 적힌 순서로 온다. 블라인드 풀이는 문항 그림을 이미지로만 보았다.
+- 문항 그림의 곡선, 점, 영역, 글자가 statement의 조건과 맞는지 확인한다. 그림이 본문에 없는 조건을 더하거나, 본문과 어긋나거나, 정답이나 구해야 할 값을 드러내거나, 그림을 재야만 풀리면 validity_issue는 true다.
+- 풀이 그림이 풀이와 어긋나면 validity_issue는 true다.
+- 그림에 대해 확인한 것을 reason에 짧게 쓴다.
 
 curriculum_issue:
 - 풀이에 curriculum_scope 밖의 개념이나 공식이 꼭 필요하면 true다.
@@ -83,3 +89,4 @@ reason:
 - v2 (초안): 2026-11-06 시험 실행에서 reason이 중국어로 나와 언어 규칙을 추가했다.
 - v3 (초안): 2026-11-06 윤결이 핵심 풀이 네 단계가 같고 마지막 계산만 다른 후보를 연계로 보기 어렵다고 판단했다. 마무리 계산을 새로운 판단으로 세지 않도록 `transferable` 기준을 강화했다.
 - v4 (초안): 2026-11-07 전문가 판정에서 AI가 놓친 두 경우(수학Ⅱ의 합성함수 미분, 원문 상수의 변수화)를 규칙에 넣고, 유사도 검사 결과(`surface_check`)를 입력으로 받게 했다.
+- v5 (초안): 2026-11-22 그림 생성(SPEC AC10 초안)을 넣으며 그림 명세와 그린 그림 이미지(`figure_images`)를 받게 하고, 그림과 본문·풀이가 어긋나거나 그림이 조건을 숨기거나 답을 드러내면 `validity_issue`로 보게 했다. 그림 결함 탐지율은 측정하지 않았다.

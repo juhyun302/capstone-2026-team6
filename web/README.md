@@ -54,7 +54,19 @@ src/
   screens/    Landing, NewRequest, Analyzing, Result
   stageshow/  benjitaylor/skills의 stageshow 키트 복사본(React + CSS)
   styles/     tokens.css(디자인 토큰, Hallmark 스탬프) · base.css · app.css
+  figure/     후보 그림(AC10 초안): expr.ts(식) · check.ts(명세 검사, src/aleph/figure.py와 같은 규칙) · render.ts(SVG) · png.ts · kit.ts(키트 스크립트) · zip.ts
 ```
+
+## 후보 그림
+
+설계안이 그림을 정하면(`plan.figure`) 후보에 문항 그림(`statement_figure`)이나 풀이 그림(`solution_figure`)이 붙습니다. 모델은 그림 명세(`src/aleph/schemas/figure.schema.json`)만 쓰고, 그리는 것은 `src/figure/render.ts`입니다.
+
+- **규격**: 그림 제작 키트(`figlib_tikz.py`, `수학그림_제작_매뉴얼_TikZ.md`)의 값을 그대로 옮겼습니다. 곡선 0.8pt, 축·보조선 0.35pt, 점선 1.5pt/1.5pt(양 끝 반 대시), Stealth 화살촉 2.06 x 1.05mm, 점 1.1mm, 색칠 RGB(188,188,188), 글자 11pt, x·y·O 자리, 대지 너비 65~90mm·높이 120mm 이하.
+- **글자**: MathJax로 SVG 경로를 만들어 그림 하나가 글꼴 파일 없이 완결됩니다. 한컴 수식 글꼴(HyhwpEQ)은 웹에 넣을 수 없어 글자 모양은 해설 본문과 조금 다릅니다. 글자는 선과 0.3mm 이상 떨어지게 자리를 고르고, 그래도 닿으면 그림 아래에 보고합니다. x·y·O는 키트 자리에 두고, 곡선이 그 자리를 지나면 반대쪽(O는 다른 사분면)으로 옮깁니다.
+- **모델이 보는 그림**: 블라인드 풀이와 검토는 그림을 200dpi PNG로 받습니다(`png.ts`). 블라인드 풀이는 그림 명세를 받지 않습니다. 비밀번호 모드에서는 worker가 `solve_candidate`, `review_candidate`에만 PNG 두 장까지 받습니다.
+- **받기**: 그림 아래에서 SVG, PNG(600dpi, 파일에 해상도 기록), 키트 스크립트(zip: `이름.py` + `이름.eq.txt`)를 받습니다. 키트 스크립트를 키트의 `temp\`에 풀고 `run_tikz.py`로 돌리면 한컴 수식 글자가 들어간 인쇄용 PDF·PNG가 나옵니다. 스크립트는 키트 함수를 쓰되 두 경우만 `fig.raw`로 화면과 같은 경로를 넣습니다. 색칠은 전부 한 경로로 넣습니다(`fig.shade`는 두 곡선의 오른쪽 끝이 떨어져 있으면 그 변을 곧게 긋지 못하고, 조각마다 따로 칠하면 사이에 틈이 보임). 곡선은 키트의 등분 조각이 0.05mm 넘게 어긋날 때만 넣습니다(원의 √식처럼 끝점 기울기가 무한대인 경우).
+- **크기**: MathJax 글리프 때문에 `render.js`가 약 1.7 MB(gzip 0.6 MB)입니다. 그림이 있을 때만 불러옵니다. 한 파일 빌드(`build:single`)에는 처음부터 들어갑니다.
+- **Python 서버**는 그림을 그리지 못해, 문항 그림이 있는 후보를 블라인드 풀이 전에 `FIGURE_UNRENDERED`로 멈춥니다. 문항 그림까지 쓰려면 브라우저 빌드(`VITE_API=browser`, 배포본)를 씁니다.
 
 ## 쓴 라이브러리
 
@@ -63,6 +75,7 @@ src/
 - **skullet**: 결과 화면 로딩 스켈레톤. 샘플 데이터의 실제 레이아웃을 측정해 자리를 잡으므로 콘텐츠가 와도 움직이지 않음.
 - **stageshow 키트**: 히어로의 가짜 제품 UI(창, 버튼, 배지, 접힘, 연결선, 커서 연출).
 - **katex**: 문항·풀이 수식 렌더링.
+- **mathjax-full** 3.2.2: 그림 글자를 SVG 경로로(`src/figure/tex.ts`). 그림이 있을 때만 불러옴.
 - **lucide-react**: 아이콘(키트가 고정한 0.468 버전).
 
 디자인 결정과 토큰은 [`../DESIGN.md`](../DESIGN.md)에 있습니다.

@@ -20,7 +20,9 @@ export default defineConfig(({ mode }) => {
     preview: { proxy: { '/api': 'http://127.0.0.1:8000' } },
     build: {
       outDir: single ? 'dist-single' : mode === 'web' ? 'dist-web' : 'dist',
-      chunkSizeWarningLimit: single ? 4000 : 1200,
+      // the figure renderer (src/figure/render.ts) carries MathJax's TeX glyphs, about 1.7 MB;
+      // it is its own chunk, loaded only when a candidate has a figure
+      chunkSizeWarningLimit: single ? 6000 : 1800,
       assetsInlineLimit: single ? Number.MAX_SAFE_INTEGER : undefined,
       cssCodeSplit: !single,
       rollupOptions: {

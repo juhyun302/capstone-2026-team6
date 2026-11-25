@@ -1,6 +1,8 @@
 // Port of generate_linked_questions (src/aleph/pipeline.py) and its parts for the browser.
-// `complete(system, user)` sends one model call and returns the raw text.
+// `complete(system, user, images?)` sends one model call and returns the raw text; images are
+// PNG data URLs of figures the model has to see.
 
+import type { FigureSpec } from '../../figure/types'
 import { THRESHOLD, similarity } from './similarity'
 import {
   PROMPTS,
@@ -16,7 +18,9 @@ import {
   type Status,
 } from './rules'
 
-export type Complete = (system: string, user: string) => Promise<string>
+export type Complete = (system: string, user: string, images?: string[]) => Promise<string>
+/** A figure as the PNG data URL a model is shown. */
+export type RenderFigure = (figure: FigureSpec) => Promise<string>
 
 export interface SourcePart {
   text?: string
@@ -93,12 +97,30 @@ function checked<T>(validate: (raw: string) => Checked<T>, raw: string) {
   return result
 }
 
+/** Send images only when there are some, so a text-only call stays as it was. */
+const call = (complete: Complete, system: string, user: string, images?: string[]) => (images?.length ? complete(system, user, images) : complete(system, user))
+
 /** Retry a malformed output once; a missing-information result is final. */
-async function firstValid<T>(complete: Complete, system: string, user: string, validate: (raw: string) => Checked<T>) {
-  let result = checked(validate, await complete(system, user))
-  if (result.status === 'OUTPUT_ERROR') result = checked(validate, await complete(system, user))
+async function firstValid<T>(complete: Complete, system: string, user: string, validate: (raw: string) => Checked<T>, images?: string[]) {
+  let result = checked(validate, await call(complete, system, user, images))
+  if (result.status === 'OUTPUT_ERROR') result = checked(validate, await call(complete, system, user, images))
   return result
 }
+
+const FIGURE_ERRORS = ['FIGURE_INVALID', 'FIGURE_MISMATCH']
+
+/** Retry a malformed draft once; a broken figure is retried with the rule it broke. */
+async function draft(complete: Complete, input: Record<string, unknown>, plan: Plan) {
+  const validate = (raw: string) => validateCandidateQuestion(raw, plan)
+  let result = checked(validate, await complete(PROMPTS.generate_candidate, JSON.stringify(input)))
+  if (result.status === 'OUTPUT_ERROR') {
+    const retry = FIGURE_ERRORS.includes(result.error_code ?? '') ? { ...input, previous_error: result.reason } : input
+    result = checked(validate, await complete(PROMPTS.generate_candidate, JSON.stringify(retry)))
+  }
+  return result
+}
+
+const UNRENDERED = '이 실행 환경에서는 문항 그림을 그릴 수 없어, 그림을 보고 푸는 독립 풀이를 하지 못했습니다. 그림을 그리는 브라우저 빌드에서 실행해 주세요.'
 
 /** Retry a malformed design once, telling the designer which rule the first one broke. */
 async function design(complete: Complete, input: Record<string, unknown>, count: number) {
@@ -115,15 +137,28 @@ export async function extractSolutionIdea(sourceQuestion: GenerationRequest['sou
   return firstValid(complete, PROMPTS.parse_query, user, (raw) => validateSolutionIdea(raw))
 }
 
+/** The blind solver sees a statement figure only as a picture, never as its spec. */
 export async function reviewCandidate(source: Record<string, string>, candidate: CandidateQuestion, scope: string, idea: SolutionIdea,
-  surfaceCheck: SurfaceCheck, complete: Complete) {
-  const solved = await firstValid(complete, PROMPTS.solve_candidate, JSON.stringify({ statement: candidate.statement, curriculum_scope: scope }), validateBlindSolution)
+  surfaceCheck: SurfaceCheck, complete: Complete, render?: RenderFigure) {
+  const pictures: Partial<Record<'statement_figure' | 'solution_figure', string>> = {}
+  for (const key of ['statement_figure', 'solution_figure'] as const) {
+    const figure = candidate[key]
+    if (figure == null) continue
+    if (render) pictures[key] = await render(figure)
+    else if (key === 'statement_figure') {
+      return { status: 'OUTPUT_ERROR' as Status, error_code: 'FIGURE_UNRENDERED', reason: UNRENDERED, value: null, review: null, transferable: null }
+    }
+  }
+  const blindImages = pictures.statement_figure ? [pictures.statement_figure] : undefined
+  const solved = await firstValid(complete, PROMPTS.solve_candidate, JSON.stringify({ statement: candidate.statement, curriculum_scope: scope }), validateBlindSolution, blindImages)
   if (solved.status !== 'OK' || !solved.value) return { ...solved, review: null, transferable: null }
   const blind = solved.value
   const blindClean = blind.status === 'solved' && blind.issues.length === 0
+  const shownFigures = Object.keys(pictures)
   const user = JSON.stringify({ source_question: source, solution_idea: idea, candidate_question: candidate, blind_solution: blind,
-    curriculum_scope: scope, surface_check: surfaceCheck })
-  const reviewed = await firstValid(complete, PROMPTS.review_candidate, user, (raw) => validateReviewOutput(raw, blindClean, surfaceCheck.copy_suspected))
+    curriculum_scope: scope, surface_check: surfaceCheck, ...(shownFigures.length ? { figure_images: shownFigures } : {}) })
+  const reviewed = await firstValid(complete, PROMPTS.review_candidate, user, (raw) => validateReviewOutput(raw, blindClean, surfaceCheck.copy_suspected),
+    Object.values(pictures))
   if (reviewed.status !== 'OK' || !reviewed.value) return { ...reviewed, review: null, transferable: null }
   const output = reviewed.value
   const review: ReviewResult = { validity_issue: output.validity_issue, curriculum_issue: output.curriculum_issue, verdict: output.verdict,
@@ -165,27 +200,26 @@ function checkCount(count: number) {
 
 /** Return every planned candidate; only reviewed ones carry a question to show (AC7). */
 async function draftAndReview(source: Record<'problem' | 'explanation', string>, conditions: Record<string, string>, idea: SolutionIdea, plans: Plan[],
-  complete: Complete, workers: number, existing: string[]): Promise<LinkedQuestions> {
+  complete: Complete, workers: number, existing: string[], render?: RenderFigure): Promise<LinkedQuestions> {
   const drafts = await mapLimit(plans, workers, (plan) => {
     const siblings = plans.filter((other) => other.id !== plan.id)
-    const user = JSON.stringify({ source_question: source, solution_idea: idea, plan, sibling_plans: siblings, ...conditions })
-    return firstValid(complete, PROMPTS.generate_candidate, user, validateCandidateQuestion)
+    return draft(complete, { source_question: source, solution_idea: idea, plan, sibling_plans: siblings, ...conditions }, plan)
   })
   const checks = surfaceChecks(source.problem, drafts.map((d) => (d.status === 'OK' && d.value ? d.value.statement : null)), existing)
   const reviews = await mapLimit(plans, workers, (_plan, index) => {
-    const draft = drafts[index]
-    if (draft.status !== 'OK' || !draft.value) return Promise.resolve(null)
-    return reviewCandidate(source, draft.value, conditions.curriculum_scope, idea, checks[index]!, complete)
+    const drafted = drafts[index]
+    if (drafted.status !== 'OK' || !drafted.value) return Promise.resolve(null)
+    return reviewCandidate(source, drafted.value, conditions.curriculum_scope, idea, checks[index]!, complete, render)
   })
 
   const candidates: CandidateOutcome[] = plans.map((plan, index) => {
-    const draft = drafts[index]
+    const drafted = drafts[index]
     const reviewed = reviews[index]
-    const failed = draft.status !== 'OK' ? draft : reviewed && reviewed.status !== 'OK' ? reviewed : null
+    const failed = drafted.status !== 'OK' ? drafted : reviewed && reviewed.status !== 'OK' ? reviewed : null
     const outcome = failed ?? reviewed!
     return {
       id: plan.id, plan, surface_check: checks[index], status: outcome.status, error_code: outcome.error_code, reason: outcome.reason,
-      candidate_question: failed ? null : draft.value, review_result: failed ? null : reviewed!.review,
+      candidate_question: failed ? null : drafted.value, review_result: failed ? null : reviewed!.review,
       transferable: failed ? null : reviewed!.transferable,
     }
   })
@@ -195,7 +229,14 @@ async function draftAndReview(source: Record<'problem' | 'explanation', string>,
   return { status: 'OK', error_code: null, reason: null, solution_idea: idea, candidates }
 }
 
-export async function generateLinkedQuestions(request: GenerationRequest, complete: Complete, { count = 3, workers = 3 } = {}): Promise<LinkedQuestions> {
+interface RunOptions {
+  count?: number
+  workers?: number
+  /** Draws a figure for the model; without it a statement figure stops before review (FIGURE_UNRENDERED). */
+  render?: RenderFigure
+}
+
+export async function generateLinkedQuestions(request: GenerationRequest, complete: Complete, { count = 3, workers = 3, render }: RunOptions = {}): Promise<LinkedQuestions> {
   checkCount(count)
   const { source, conditions } = checkGenerationRequest(request)
 
@@ -209,13 +250,13 @@ export async function generateLinkedQuestions(request: GenerationRequest, comple
   if (designed.status !== 'OK' || !designed.value) {
     return { status: designed.status, error_code: designed.error_code, reason: designed.reason, solution_idea: idea, candidates: [] }
   }
-  return draftAndReview(source, conditions, idea, designed.value.plans, complete, workers, [])
+  return draftAndReview(source, conditions, idea, designed.value.plans, complete, workers, [], render)
 }
 
 const NO_MORE_REASON = '이미 만든 후보와 겹치지 않는 설계안을 더 만들지 못했다는 답이 왔습니다. 결과 화면으로 돌아가 다른 유형으로 시작해 주세요.'
 
 /** Add candidates on an extracted SolutionIdea, away from the questions already made. */
-export async function generateMoreQuestions(request: GenerationRequest, idea: SolutionIdea, existing: string[], complete: Complete, { count = 2, workers = 3 } = {}): Promise<LinkedQuestions> {
+export async function generateMoreQuestions(request: GenerationRequest, idea: SolutionIdea, existing: string[], complete: Complete, { count = 2, workers = 3, render }: RunOptions = {}): Promise<LinkedQuestions> {
   checkCount(count)
   if (!existing.length || existing.length + count > MAX_TOTAL_CANDIDATES) throw new RangeError(`existing and new candidates must total at most ${MAX_TOTAL_CANDIDATES}`)
   const { source, conditions } = checkGenerationRequest(request)
@@ -225,5 +266,5 @@ export async function generateMoreQuestions(request: GenerationRequest, idea: So
   if (designed.status !== 'OK' || !designed.value) {
     return { status: designed.status, error_code: designed.error_code, reason: designed.reason, solution_idea: idea, candidates: [] }
   }
-  return draftAndReview(source, conditions, idea, designed.value.plans, complete, workers, existing)
+  return draftAndReview(source, conditions, idea, designed.value.plans, complete, workers, existing, render)
 }

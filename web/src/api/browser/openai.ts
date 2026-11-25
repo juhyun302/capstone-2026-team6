@@ -5,7 +5,7 @@
 //                  {status, body} after whitespace heartbeats (see web/worker/index.ts).
 
 import type { AccessSettings } from '../settings'
-import { PROMPT_NAMES, type PromptName } from '../promptText'
+import { modelInput, PROMPT_NAMES, type PromptName } from '../promptText'
 import type { Complete } from './pipeline'
 import { PROMPTS } from './rules'
 
@@ -57,7 +57,7 @@ function read(status: number, body: ResponseBody | null, owner: Owner, model: st
 }
 
 function direct(apiKey: string, model: string): Complete {
-  return async (system, user) => {
+  return async (system, user, images) => {
     for (let attempt = 0; ; attempt += 1) {
       let response: Response
       try {
@@ -65,7 +65,7 @@ function direct(apiKey: string, model: string): Complete {
           method: 'POST',
           headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            model, instructions: system, input: user, max_output_tokens: 24000, store: false,
+            model, instructions: system, input: modelInput(user, images), max_output_tokens: 24000, store: false,
           }),
         })
       } catch {
@@ -81,7 +81,7 @@ function direct(apiKey: string, model: string): Complete {
 }
 
 function viaWorker(password: string): Complete {
-  return async (system, user) => {
+  return async (system, user, images) => {
     const prompt = NAME_BY_PROMPT.get(system)
     if (!prompt) throw new ModelCallError('알 수 없는 프롬프트입니다.', 'other')
     for (let attempt = 0; ; attempt += 1) {
@@ -91,7 +91,7 @@ function viaWorker(password: string): Complete {
         response = await fetch(`${WORKER_PATH}/openai`, {
           method: 'POST',
           headers: { 'X-Aleph-Password': password, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, input: user }),
+          body: JSON.stringify({ prompt, input: user, ...(images?.length ? { images } : {}) }),
         })
         if (response.ok) wrapped = JSON.parse(await response.text())
       } catch {

@@ -14,6 +14,8 @@ import blindSchema from '../../../../src/aleph/schemas/blind_solution.schema.jso
 import reviewSchema from '../../../../src/aleph/schemas/review_output.schema.json?raw'
 import designSchema from '../../../../src/aleph/schemas/candidate_design.schema.json?raw'
 
+import { candidateFigureProblem } from '../../figure/check'
+import type { FigureSpec } from '../../figure/types'
 import { promptOf, type PromptName } from '../promptText'
 
 export { promptOf }
@@ -117,14 +119,19 @@ export function validateSolutionIdea(raw: unknown, comparisonAvailable = false):
 export interface CandidateQuestion {
   statement: string
   solution: string
+  statement_figure?: FigureSpec | null
+  solution_figure?: FigureSpec | null
 }
 
-export function validateCandidateQuestion(raw: unknown): Checked<CandidateQuestion> {
+/** A figure must be drawable and match the statement and, when given, the plan's figure decision. */
+export function validateCandidateQuestion(raw: unknown, plan?: Plan | null): Checked<CandidateQuestion> {
   const { value, error } = parsed(raw)
   if (error) return fail('JSON_INVALID', JSON_REASON)
   if (!CANDIDATE(value)) return fail('SCHEMA_INVALID', '출력이 후보 문항 스키마의 키, 타입 또는 값 제약을 위반했습니다.')
   const candidate = value as CandidateQuestion
-  if (Object.values(candidate).some(blank)) return fail('EMPTY_TEXT', '공백만 있는 문자열을 문항이나 풀이로 사용할 수 없습니다.')
+  if (blank(candidate.statement) || blank(candidate.solution)) return fail('EMPTY_TEXT', '공백만 있는 문자열을 문항이나 풀이로 사용할 수 없습니다.')
+  const figure = candidateFigureProblem(candidate as CandidateQuestion & Record<string, unknown>, plan)
+  if (figure) return fail(figure.code, figure.reason)
   return ok(candidate)
 }
 
@@ -173,6 +180,8 @@ export interface Plan {
   solution_route: string | string[]
   changed_axes: string[]
   added_judgment: string
+  /** Where the candidate has a figure; absent means none. */
+  figure?: 'none' | 'statement' | 'solution' | 'both'
 }
 
 type DesignError = { path: string[]; keyword: string }

@@ -49,7 +49,7 @@ def _reporting(complete: Complete, job: _Job) -> Complete:
     """Turn model calls into progress events; candidates run in parallel, so stages only move forward."""
     stages = _stage_by_prompt()
 
-    def reported(system: str, user: str) -> str:
+    def reported(system: str, user: str, images: list | None = None) -> str:
         stage = stages[system]
         with job.lock:
             # the design call starts only after the extracted idea passed the code checks
@@ -59,7 +59,7 @@ def _reporting(complete: Complete, job: _Job) -> Complete:
             if _STAGES.index(stage) > _STAGES.index(job.stage):
                 job.stage = stage
                 job.events.append({"stage": stage})
-        output = complete(system, user)
+        output = complete(system, user, images) if images else complete(system, user)
         if stage == "extract":
             checked = validate_solution_idea(output)
             if checked["status"] == "OK":
@@ -153,7 +153,9 @@ def _candidate_of(results: dict, result_id: str, candidate_id: str) -> dict:
     return candidate
 
 
-def create_app(complete: Complete, *, count: int = 3, workers: int = 3) -> FastAPI:
+def create_app(complete: Complete, *, count: int = 3, workers: int = 3,
+               render_figure=None) -> FastAPI:
+    """render_figure(figure) -> PNG data URL; without it a statement figure stops before review."""
     app = FastAPI(title="Aleph")
     jobs: dict = {}
     results: dict = {}
@@ -176,7 +178,7 @@ def create_app(complete: Complete, *, count: int = 3, workers: int = 3) -> FastA
 
         def generate() -> dict:
             return generate_linked_questions(request, _reporting(complete, job), count=amount,
-                                             workers=workers)
+                                             workers=workers, render_figure=render_figure)
 
         def keep(output: dict) -> str:
             record = _result_record(job, output)
@@ -205,7 +207,8 @@ def create_app(complete: Complete, *, count: int = 3, workers: int = 3) -> FastA
 
         def generate() -> dict:
             return generate_more_questions(request, idea, existing, _reporting(complete, job),
-                                           count=amount, workers=workers)
+                                           count=amount, workers=workers,
+                                           render_figure=render_figure)
 
         def keep(output: dict) -> str:
             # a candidate can be dropped in review, so the next id comes from the largest one

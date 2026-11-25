@@ -2,6 +2,8 @@
 // The web client speaks only these shapes; the mock in ./mock.ts and a future
 // FastAPI/Next route both implement `generate_linked_question` and `review_candidate`.
 
+import type { FigureSpec } from '../figure/types'
+
 export type Role = '수학 문항 제작자' | '학원 수학 강사'
 
 /** One side of the source: an image, text with formulas, or both. */
@@ -52,6 +54,10 @@ export interface CandidateQuestion {
   id: string
   statement: string
   solution: string
+  /** A figure that is part of the question; the statement points to it. */
+  statement_figure?: FigureSpec | null
+  /** A figure that goes with the solution. */
+  solution_figure?: FigureSpec | null
   /** Where each key element of the source is applied. The server writes this in `reason` (AC3). */
   element_trace?: [string, string]
   /** The two formulas in the statement that carry the key elements, as they appear in `statement` (for the ink marks). */

@@ -14,6 +14,14 @@
       "type": "string",
       "minLength": 1,
       "description": "조건 해석부터 정답까지의 풀이."
+    },
+    "statement_figure": {
+      "type": ["object", "null"],
+      "description": "문항의 일부인 그림. 형식은 figure.schema.json이며 aleph.figure.validate_figure가 따로 검사한다. 있으면 statement가 그림을 가리켜야 한다."
+    },
+    "solution_figure": {
+      "type": ["object", "null"],
+      "description": "풀이에 붙이는 그림. 형식은 figure.schema.json이다."
     }
   },
   "required": ["statement", "solution"],

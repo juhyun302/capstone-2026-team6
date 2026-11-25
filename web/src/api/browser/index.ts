@@ -5,7 +5,10 @@ import { accessMode, getSettings } from '../settings'
 import type { CallKind, GenerationRequest, GenerationResult, JobEvent, JobStage, QuestionError, ReviewResult, SourcePart, Verdict } from '../types'
 import { ModelCallError, checkPassword, modelComplete } from './openai'
 import { PROMPTS } from './rules'
-import { checkGenerationRequest, generateLinkedQuestions, generateMoreQuestions, type CandidateOutcome, type Complete, type LinkedQuestions } from './pipeline'
+import { checkGenerationRequest, generateLinkedQuestions, generateMoreQuestions, type CandidateOutcome, type Complete, type LinkedQuestions, type RenderFigure } from './pipeline'
+
+/** The blind solver and the reviewer see a figure as this picture; the drawing code loads only when a figure exists. */
+const renderForModel: RenderFigure = async (figure) => (await import('../../figure/png')).figurePng(figure)
 
 const RESULTS_KEY = 'aleph.browser.results.v1'
 const STAGES: JobStage[] = ['read', 'extract', 'validate', 'generate', 'review']
@@ -52,7 +55,7 @@ const CALL_BY_PROMPT: Record<string, { stage: JobStage; kind: CallKind }> = {
 
 /** Turn model calls into progress events; candidates run in parallel, so stages only move forward. */
 function reporting(complete: Complete, job: Job): Complete {
-  return async (system, user) => {
+  return async (system, user, images) => {
     const { stage, kind } = CALL_BY_PROMPT[system]
     // the design call starts only after the extracted idea passed the code checks
     if (stage === 'generate' && STAGES.indexOf(job.stage) < STAGES.indexOf('validate')) {
@@ -66,7 +69,7 @@ function reporting(complete: Complete, job: Job): Complete {
     push(job, { stage: job.stage, call: { kind, phase: 'start' } })
     let output: string
     try {
-      output = await complete(system, user)
+      output = await (images?.length ? complete(system, user, images) : complete(system, user))
     } finally {
       push(job, { stage: job.stage, call: { kind, phase: 'end' } })
     }
@@ -119,7 +122,7 @@ export async function createJob(req: GenerationRequest): Promise<{ jobId: string
   }
   const complete = await connect()
   const events: JobEvent[] = [{ stage: 'read', at: Date.now(), source_statement: request.source_question.problem.text, candidates: req.count }]
-  return start(events, 'read', complete, (reported) => generateLinkedQuestions(request, reported, { count: req.count }), (output) => {
+  return start(events, 'read', complete, (reported) => generateLinkedQuestions(request, reported, { count: req.count, render: renderForModel }), (output) => {
     const result = record(req, output)
     results[result.id] = result
     return result.id
@@ -142,7 +145,7 @@ export async function createMoreJob(resultId: string, count: number): Promise<{ 
     { stage: 'extract', at, solution_idea: idea, call: { kind: 'extract', phase: 'start' } },
     { stage: 'extract', at, call: { kind: 'extract', phase: 'end' } },
   ]
-  return start(events, 'extract', complete, (reported) => generateMoreQuestions(request, idea, existing, reported, { count }), (output) => {
+  return start(events, 'extract', complete, (reported) => generateMoreQuestions(request, idea, existing, reported, { count, render: renderForModel }), (output) => {
     // a candidate can be dropped in review, so the next id comes from the largest one
     let number = Math.max(...result.candidates.map((c) => Number(c.id.slice(1))))
     for (const candidate of output.candidates.filter((c) => c.review_result)) {

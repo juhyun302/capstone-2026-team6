@@ -2,16 +2,18 @@
 // before this code runs; this code answers only /api/*:
 //   POST /api/check   204 when the X-Aleph-Password header is right and a whole request still
 //                     fits in today's limit; 401 for a wrong password, 429 when the day is used up.
-//   POST /api/openai  {prompt, input}: runs one of Aleph's five prompts on OpenAI with the
-//                     server's key and model. The reply is {status, body} from OpenAI, sent
-//                     after whitespace heartbeats so a two-minute call is not cut as idle.
+//   POST /api/openai  {prompt, input, images?}: runs one of Aleph's five prompts on OpenAI with the
+//                     server's key and model. images (at most two PNG data URLs) are the figure
+//                     pictures the blind solver and the reviewer look at; other prompts take none.
+//                     The reply is {status, body} from OpenAI, sent after whitespace heartbeats so
+//                     a two-minute call is not cut as idle.
 // The key never reaches the browser, and the password only unlocks these five prompts.
 // DAILY_CALL_LIMIT caps model calls per day (Korean time) for everyone together, counted
 // in one Durable Object, so a password made public in the README has a bounded cost.
 // Secrets (npx wrangler secret put NAME): OPENAI_API_KEY, ACCESS_PASSWORD.
 
 import { DurableObject } from 'cloudflare:workers'
-import { PROMPT_NAMES, promptOf, type PromptName } from '../src/api/promptText'
+import { IMAGE_PROMPTS, imagesOk, MAX_IMAGES, modelInput, PROMPT_NAMES, promptOf, type PromptName } from '../src/api/promptText'
 import parseQueryMd from '../../src/aleph/prompts/parse_query.md'
 import designMd from '../../src/aleph/prompts/design_candidates.md'
 import generateMd from '../../src/aleph/prompts/generate_candidate.md'
@@ -133,7 +135,7 @@ export default {
       return left >= CALLS_PER_REQUEST ? new Response(null, { status: 204 }) : json(429, LIMIT_REACHED)
     }
 
-    let payload: { prompt?: unknown; input?: unknown }
+    let payload: { prompt?: unknown; input?: unknown; images?: unknown }
     try {
       payload = await request.json()
     } catch {
@@ -142,6 +144,10 @@ export default {
     const prompt = payload.prompt as PromptName
     if (!PROMPT_NAMES.includes(prompt)) return json(400, { error: 'unknown prompt' })
     if (typeof payload.input !== 'string' || !payload.input || payload.input.length > MAX_INPUT) return json(400, { error: 'input must be a non-empty string' })
+    const images = payload.images
+    if (images !== undefined && (!IMAGE_PROMPTS.includes(prompt) || !imagesOk(images))) {
+      return json(400, { error: `images must be at most ${MAX_IMAGES} PNG data URLs, for solve_candidate or review_candidate only` })
+    }
 
     if (!(await usage(env).take(today(), dailyLimit(env)))) return json(429, LIMIT_REACHED)
 
@@ -150,7 +156,7 @@ export default {
       method: 'POST',
       headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: env.OPENAI_MODEL || 'gpt-6.1-sol', instructions: PROMPTS[prompt], input: payload.input,
+        model: env.OPENAI_MODEL || 'gpt-6.1-sol', instructions: PROMPTS[prompt], input: modelInput(payload.input, images as string[] | undefined),
         max_output_tokens: 24000, store: false, ...(effort ? { reasoning: { effort } } : {}),
       }),
     })
