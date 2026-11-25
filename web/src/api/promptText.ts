@@ -19,6 +19,25 @@ export function imagesOk(images: unknown): images is string[] {
     && images.every((image) => typeof image === 'string' && image.length <= MAX_IMAGE_CHARS && PNG_DATA_URL.test(image))
 }
 
+/** The parts of a Responses API reply that Aleph reads. */
+export interface ResponseBody {
+  status?: string
+  model?: string
+  output?: { type?: string; content?: { type?: string; text?: string }[] }[]
+  error?: { code?: string; message?: string }
+  incomplete_details?: { reason?: string }
+  usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number }
+}
+
+/** The reply's text: every output_text part of its message items, joined. */
+export const outputText = (body: ResponseBody) =>
+  (body.output ?? [])
+    .filter((item) => item.type === 'message')
+    .flatMap((item) => item.content ?? [])
+    .filter((part) => part.type === 'output_text')
+    .map((part) => part.text ?? '')
+    .join('')
+
 /** The Responses API `input`: the JSON text alone, or the text followed by the pictures. */
 export function modelInput(user: string, images?: string[]) {
   if (!images?.length) return user

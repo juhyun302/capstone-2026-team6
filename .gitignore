@@ -3,5 +3,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .tmp/
+# 운영 기록(logs/trace.jsonl)은 이 컴퓨터에만 둔다. 실행마다 쌓여 커밋을 도배하므로 당분간 올리지 않는다.
+# 올리기로 하면 아래 줄을 지운다(원문·해설 본문이 들어 있으니 공개 저장소인지 먼저 확인).
+logs/
 *.py[cod]
 .env

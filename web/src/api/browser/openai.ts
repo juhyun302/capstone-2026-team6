@@ -5,7 +5,7 @@
 //                  {status, body} after whitespace heartbeats (see web/worker/index.ts).
 
 import type { AccessSettings } from '../settings'
-import { modelInput, PROMPT_NAMES, type PromptName } from '../promptText'
+import { modelInput, outputText, PROMPT_NAMES, type PromptName, type ResponseBody } from '../promptText'
 import type { Complete } from './pipeline'
 import { PROMPTS } from './rules'
 
@@ -14,20 +14,6 @@ export class ModelCallError extends Error {
     super(message)
   }
 }
-
-interface ResponseBody {
-  status?: string
-  output?: { type?: string; content?: { type?: string; text?: string }[] }[]
-  error?: { code?: string; message?: string }
-}
-
-const outputText = (body: ResponseBody) =>
-  (body.output ?? [])
-    .filter((item) => item.type === 'message')
-    .flatMap((item) => item.content ?? [])
-    .filter((part) => part.type === 'output_text')
-    .map((part) => part.text ?? '')
-    .join('')
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 const NAME_BY_PROMPT = new Map<string, PromptName>(PROMPT_NAMES.map((name) => [PROMPTS[name], name]))
@@ -80,7 +66,8 @@ function direct(apiKey: string, model: string): Complete {
   }
 }
 
-function viaWorker(password: string): Complete {
+/** traceId (the job id) lets the worker's trace lines of one request be read together. */
+function viaWorker(password: string, traceId?: string): Complete {
   return async (system, user, images) => {
     const prompt = NAME_BY_PROMPT.get(system)
     if (!prompt) throw new ModelCallError('알 수 없는 프롬프트입니다.', 'other')
@@ -90,7 +77,7 @@ function viaWorker(password: string): Complete {
       try {
         response = await fetch(`${WORKER_PATH}/openai`, {
           method: 'POST',
-          headers: { 'X-Aleph-Password': password, 'Content-Type': 'application/json' },
+          headers: { 'X-Aleph-Password': password, 'Content-Type': 'application/json', ...(traceId ? { 'X-Aleph-Trace': traceId } : {}) },
           body: JSON.stringify({ prompt, input: user, ...(images?.length ? { images } : {}) }),
         })
         if (response.ok) wrapped = JSON.parse(await response.text())
@@ -111,11 +98,11 @@ function viaWorker(password: string): Complete {
   }
 }
 
-/** The model call for the current access mode. */
-export function modelComplete(mode: 'key' | 'password', settings: AccessSettings): Complete {
+/** The model call for the current access mode; only the worker keeps a trace, under traceId. */
+export function modelComplete(mode: 'key' | 'password', settings: AccessSettings, traceId?: string): Complete {
   const secret = settings.secret.trim()
   if (!secret) throw new ModelCallError(mode === 'password' ? '비밀번호를 넣어 주세요.' : 'OpenAI API 키를 넣어 주세요.', 'auth')
-  if (mode === 'password') return viaWorker(secret)
+  if (mode === 'password') return viaWorker(secret, traceId)
   if (!settings.model.trim()) throw new ModelCallError('모델 이름을 넣어 주세요.', 'model')
   return direct(secret, settings.model.trim())
 }

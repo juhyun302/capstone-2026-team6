@@ -154,11 +154,17 @@ def _candidate_of(results: dict, result_id: str, candidate_id: str) -> dict:
 
 
 def create_app(complete: Complete, *, count: int = 3, workers: int = 3,
-               render_figure=None) -> FastAPI:
-    """render_figure(figure) -> PNG data URL; without it a statement figure stops before review."""
+               render_figure=None, trace=None) -> FastAPI:
+    """render_figure(figure) -> PNG data URL; without it a statement figure stops before review.
+
+    trace(complete, job_id) -> Complete records each model call of one job (aleph.trace.traced).
+    """
     app = FastAPI(title="Aleph")
     jobs: dict = {}
     results: dict = {}
+
+    def calls(job_id: str, job: _Job) -> Complete:
+        return _reporting(trace(complete, job_id) if trace else complete, job)
 
     @app.post("/api/requests")
     def create_job(request: dict = Body(...)) -> dict:
@@ -177,7 +183,7 @@ def create_app(complete: Complete, *, count: int = 3, workers: int = 3,
         jobs[job_id] = job
 
         def generate() -> dict:
-            return generate_linked_questions(request, _reporting(complete, job), count=amount,
+            return generate_linked_questions(request, calls(job_id, job), count=amount,
                                              workers=workers, render_figure=render_figure)
 
         def keep(output: dict) -> str:
@@ -206,7 +212,7 @@ def create_app(complete: Complete, *, count: int = 3, workers: int = 3,
         jobs[job_id] = job
 
         def generate() -> dict:
-            return generate_more_questions(request, idea, existing, _reporting(complete, job),
+            return generate_more_questions(request, idea, existing, calls(job_id, job),
                                            count=amount, workers=workers,
                                            render_figure=render_figure)
 
