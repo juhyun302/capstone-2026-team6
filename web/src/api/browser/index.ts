@@ -120,9 +120,10 @@ export async function createJob(req: GenerationRequest): Promise<{ jobId: string
   } catch (error) {
     throw new Error(String(error).includes('image') ? '이미지 입력은 아직 지원하지 않습니다. 수식·텍스트로 넣어 주세요.' : '원문, 해설, 교육과정 범위를 모두 넣어 주세요.')
   }
-  const complete = await connect()
+  const jobId = id('job')
+  const complete = await connect(jobId)
   const events: JobEvent[] = [{ stage: 'read', at: Date.now(), source_statement: request.source_question.problem.text, candidates: req.count }]
-  return start(events, 'read', complete, (reported) => generateLinkedQuestions(request, reported, { count: req.count, render: renderForModel }), (output) => {
+  return start(jobId, events, 'read', complete, (reported) => generateLinkedQuestions(request, reported, { count: req.count, render: renderForModel }), (output) => {
     const result = record(req, output)
     results[result.id] = result
     return result.id
@@ -133,7 +134,8 @@ export async function createJob(req: GenerationRequest): Promise<{ jobId: string
 export async function createMoreJob(resultId: string, count: number): Promise<{ jobId: string }> {
   const result = results[resultId]
   if (!result) throw new Error('이 검토 결과를 찾을 수 없습니다. 원문을 다시 올려 주세요.')
-  const complete = await connect()
+  const jobId = id('job')
+  const complete = await connect(jobId)
   const { source, intended_use, target_level, curriculum_scope } = result.request
   const request = { intended_use, target_level, curriculum_scope, source_question: { problem: { text: source.statement }, explanation: { text: source.solution } } }
   const idea = result.solution_idea
@@ -145,7 +147,7 @@ export async function createMoreJob(resultId: string, count: number): Promise<{ 
     { stage: 'extract', at, solution_idea: idea, call: { kind: 'extract', phase: 'start' } },
     { stage: 'extract', at, call: { kind: 'extract', phase: 'end' } },
   ]
-  return start(events, 'extract', complete, (reported) => generateMoreQuestions(request, idea, existing, reported, { count, render: renderForModel }), (output) => {
+  return start(jobId, events, 'extract', complete, (reported) => generateMoreQuestions(request, idea, existing, reported, { count, render: renderForModel }), (output) => {
     // a candidate can be dropped in review, so the next id comes from the largest one
     let number = Math.max(...result.candidates.map((c) => Number(c.id.slice(1))))
     for (const candidate of output.candidates.filter((c) => c.review_result)) {
@@ -156,16 +158,16 @@ export async function createMoreJob(resultId: string, count: number): Promise<{ 
   })
 }
 
-async function connect(): Promise<Complete> {
+/** The job id goes to the worker with each call, so its trace lines of one job share a trace_id. */
+async function connect(jobId: string): Promise<Complete> {
   const settings = getSettings()
   // a wrong password should stop here, with the form still filled in
   if (accessMode === 'password') await checkPassword(settings.secret)
-  return modelComplete(accessMode, settings)
+  return modelComplete(accessMode, settings, jobId)
 }
 
 /** Run the pipeline in the background; `keep` stores a good output and returns its result id. */
-function start(events: JobEvent[], stage: JobStage, complete: Complete, generate: (reported: Complete) => Promise<LinkedQuestions>, keep: (output: LinkedQuestions) => string) {
-  const jobId = id('job')
+function start(jobId: string, events: JobEvent[], stage: JobStage, complete: Complete, generate: (reported: Complete) => Promise<LinkedQuestions>, keep: (output: LinkedQuestions) => string) {
   const job: Job = { events, stage, done: false, wake: null }
   jobs.set(jobId, job)
   void (async () => {
